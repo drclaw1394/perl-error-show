@@ -27,10 +27,12 @@ To programically show why a script failed to load
 =head1 DESCRIPTION
 
 Presents expanded contextual information about syntax errors in perl scripts
-from the command line or as a debugging tool. 
+from the command line as a debugging tool.  It is also useful at program
+runtime to debug dynamically created and evaulated code (eval), providing the
+much needed contextual information for otherwise near unidentifiable eval code.
 
 
-Consider the following code (t/require.t.pl):
+Consider the following code in the file t/require.t.pl:
 
 	use warnings;
 	use strict;
@@ -51,7 +53,7 @@ Consider the following code (t/require.t.pl):
 	1;
 
 A keen eye will notice line 7/8 has a syntax error (no semi colon). Running
-C<perl -c> on this file generates the very plain but targeted error;
+C<perl -c> on this file generates the very plain but targeted error:
 
 	syntax error at t/require.t.pl line 8, near "our "
 	t/require.t.pl had compilation errors.
@@ -75,14 +77,17 @@ to look:
 
 =head1 MOTIVATION
 
-Working on multiple modules which depend on each other makes traking down
-syntax errors painful. While there is always a bunch of line numbers indicating
-where the error might have come from, it hardly triggers any visions of the
-code. That is unless you just edited the file 10s previously or have an
-impecible memory.
+Perl lists a bunch of line numbers indicating where a syntax error might have
+originated.  This is not so bad when you are actively editing a file that fails
+syntax. However it hardly triggers any visions of code when the error is in a
+file from a dependency module which you haven't worked on in a while or have
+never inspected.
+
+This problem becomes almost unmanageable for any non trivial runtime evaluated
+code, as perl does not report a file.
 
 This module attempts address the lack of recall and 'refresh your memory' by
-presenting code lines immediately before and after the error line.
+presenting code lines immediately before and after the error line. 
 
 
 

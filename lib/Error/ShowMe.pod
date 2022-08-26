@@ -1,0 +1,106 @@
+=head1 NAME
+
+Error::ShowMe - Point out syntax error in context
+
+=head1 SYNOPSIS
+
+To check a file from the command line, add C<-MError::ShowMe> as the first
+module to add:
+
+	perl -MError::ShowMe -c path/to/file.pl
+
+	perl -I my_lib -MError::ShowMe -MAnother::Module -c path/to/file.pl
+
+
+To programically show why a script failed to load
+
+	use Error::ShowMe;
+
+	my $path="path/to/file.pl";
+
+	#With do:
+	do $path or Error::ShowMe::context "file_path", $@;
+
+	#With Eval/require
+	eval { require $path } or Error::ShowMe::context $path, $@;
+
+=head1 DESCRIPTION
+
+Presents expanded contextual information about syntax errors in perl scripts
+from the command line or as a debugging tool. 
+
+
+Consider the following code (t/require.t.pl):
+
+	use warnings;
+	use strict;
+
+
+	#Deliberately cause and error
+
+	my $h=""
+	our $b="a";
+
+
+	#Some more code
+
+	my $i=0;
+	for(0..9){
+		$i++;
+	}
+	1;
+
+A keen eye will notice line 7/8 has a syntax error (no semi colon). Running
+C<perl -c> on this file generates the very plain but targeted error;
+
+	syntax error at t/require.t.pl line 8, near "our "
+	t/require.t.pl had compilation errors.
+
+Running a check with L<Error::ShowMe> gives a much clearer indication of where
+to look:
+	syntax error at t/require.t.pl line 8, near "our "
+	t/require.t.pl had compilation errors.
+	 3   
+	 4   
+	 5   #Deliberately cause and error
+	 6   
+	 7   my $h=""
+	 8=> our $b="a";
+	 9   
+	10   
+	11   #Some more code
+	12   
+	13   my $i=0;
+
+
+=head1 MOTIVATION
+
+Working on multiple modules which depend on each other makes traking down
+syntax errors painful. While there is always a bunch of line numbers indicating
+where the error might have come from, it hardly triggers any visions of the
+code. That is unless you just edited the file 10s previously or have an
+impecible memory.
+
+This module attempts address the lack of recall and 'refresh your memory' by
+presenting code lines immediately before and after the error line.
+
+
+
+
+
+=head1 FUTURE WORK/TODO
+
+=over 
+
+=item JSON/HTML and others output formats
+
+=item Make usable from a Language Server?
+
+=item Colour terminal output
+
+=item What would you like?
+
+=back
+
+
+

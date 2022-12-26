@@ -1,10 +1,12 @@
 use warnings;
 use strict;
+use Carp;
 
 
 #Deliberately cause and error
-
-my $h=""
+#die "lkjasdf";
+croak "asdf";
+my $h="";
 our $b="a";
 
 

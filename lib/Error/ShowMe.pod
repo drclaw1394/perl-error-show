@@ -1,15 +1,15 @@
 =head1 NAME
 
-Error::ShowMe - Point out syntax error in context
+Error::ShowMe - Show code context of your syntax and runtime errors
 
 =head1 SYNOPSIS
 
 To check a file from the command line, add C<-MError::ShowMe> as the first
 module to add:
 
-	perl -MError::ShowMe -c path/to/file.pl
+	perl -MError::ShowMe path/to/file.pl
 
-	perl -I my_lib -MError::ShowMe -MAnother::Module -c path/to/file.pl
+	perl -I my_lib -MError::ShowMe -MAnother::Module  path/to/file.pl another/file.pl ...
 
 
 To programically show why a script failed to load
@@ -19,76 +19,253 @@ To programically show why a script failed to load
 	my $path="path/to/file.pl";
 
 	#With do:
-	do $path or Error::ShowMe::context "file_path", $@;
+	do $path;
+	my $context=Error::ShowMe::context $path;
 
-	#With Eval/require
-	eval { require $path } or Error::ShowMe::context $path, $@;
+	#String eval
+	eval my $string="$i+1/0";
+	my $context=Error::ShowMe::context \$string;
+
+	#With block eval
+	eval { require $path };
+	my $context=Error::ShowMe::context __FILE__;
+
 
 =head1 DESCRIPTION
 
-Presents expanded contextual information about syntax errors in perl scripts
-from the command line as a debugging tool.  It is also useful at program
-runtime to debug dynamically created and evaulated code (eval), providing the
-much needed contextual information for otherwise near unidentifiable eval code.
+This module transforms basic perl errors and caller information into a more
+meaningful context without effecting your execption handling. If you are
+editing multiple files, across multiple modules, the line numbers alone don't
+really show you what is wrong and can be rather confusing.
+
+Feature rich execeptions classes (which this module does NOT supply) are great
+for dumping call stacks. However, they only work if your code compiles in the
+first place.  While you can use perl's -c flag to check syntax, it only gives
+line numbers of any errors and maybe a few characters of the source file.
 
 
-Consider the following code in the file t/require.t.pl:
+From the command line, this module can be used to check syntax of multiple
+source files at once.  When used in code, it can inspect origins of errors, or
+arbitary lines of code.
 
-	use warnings;
-	use strict;
-
-
-	#Deliberately cause and error
-
-	my $h=""
-	our $b="a";
+A handfull of options provided basic configuration of how many lines of code to
+print before and after the target line, indenting  prefix etc.
 
 
-	#Some more code
 
-	my $i=0;
-	for(0..9){
-		$i++;
-	}
-	1;
+=head1 API
 
-A keen eye will notice line 7/8 has a syntax error (no semi colon). Running
-C<perl -c> on this file generates the very plain but targeted error:
+=head2 Command Line usage (Syntax checking)
 
-	syntax error at t/require.t.pl line 8, near "our "
-	t/require.t.pl had compilation errors.
+When included in a command line switch to perl C<-MError::ShowMe>, it syntax
+checks all inputs files.  This can be used with or without the C<-c> switch.
 
-Running a check with L<Error::ShowMe> gives a much clearer indication of where
-to look:
-	syntax error at t/require.t.pl line 8, near "our "
-	t/require.t.pl had compilation errors.
-	 3   
-	 4   
-	 5   #Deliberately cause and error
-	 6   
-	 7   my $h=""
-	 8=> our $b="a";
-	 9   
+It is important that it's the first C<-M> switch
+
+	perl -MError::ShowMe  file1.pl file2.pl ...
+
+Additional C<@INC> directories can also be used.
+
+=head2 Programmic Usage
+
+
+Simply bring L<Error::ShowMe> into your program with a use statement:
+
+	use Error::ShowMe;
+
+This provides two subroutines (not exported)C<Error::ShowMe::context> and C<Error::ShowMe::trace_context>
+
+=head3 Error::ShowMe::context
+
+	Error::ShowMe::context [options_pairs,] filename
+	
+
+Generates a string with the code surrounding a target line number from
+C<filename>. This could be a manual line number specified with a C<line>
+options, or it could be extracted from the C<error> option.
+
+If C<filename> is a string, it is treated as path. The file at the path is
+loaded and processed with the information from C<line> or C<error> options to
+generate context.
+
+If C<filename> is a reference to a scalar, it is dereferenced, the contents
+used directly as the program source to process using C<line> or C<error>
+options to generate context.
+
+If no C<error> option is provided, the C<$@> variable is used to extract error
+line numbers
+
+A C<line> option will force context to be generated from that line, ignorning any errors.
+
+=head3 Error::ShowMe::trace_context
+
+	Error::ShowMe::trace_context [option_pairs,]
+
+Repeatedly calls C<Error::ShowMe::context> for each level the call stack to
+provide more information.  Each level is indented with multiples of the
+C<indent> option. No filename is needed, as this is extraced from the caller.
+
+
+
+
+=head1 WHY USE THIS MODULE
+
+=over
+
+=item Syntax Checking
+
+If your code doesn't compile, you can't use a custom execption class can you.
+This will provide context information on syntax error directly from the command
+line and doesn't need to be a dependency of your code.
+
+=item Syntax check multiple files
+
+Multiple source files can be checked from the command line with formated output
+
+
+=item Use the exception module you want to
+
+This module doesn't get in the way of using nice execption classes during run
+time. It suppliments them.
+
+=back
+
+=head1 EXAMPLE USAGE
+
+=head2 Syntax Checking
+
+The B<examples/file_syn_error1.pl> program has a syntax error. Check it by running:
+
+	perl -MError::ShowMe examples/file_syn_error1.pl;
+
+
+The output will be something like this:
+
+	./file_syn_error1.pl
+	"use" not allowed in expression at ./file_syn_error1.pl line 9, at end of line
+	syntax error at ./file_syn_error1.pl line 9, near "adf
+	use Socket"
+	./file_syn_error1.pl had compilation errors.
+	 4   my $time=time;
+	 5   for(1..1000){
+	 6   	print "$_\n";
+	 7   }
+	 8   adf
+	 9=> use Socket;
 	10   
-	11   #Some more code
-	12   
-	13   my $i=0;
+	11   print "this will never work";
 
 
-=head1 MOTIVATION
+=head2 Stack Dump
 
-Perl lists a bunch of line numbers indicating where a syntax error might have
-originated.  This is not so bad when you are actively editing a file that fails
-syntax. However it hardly triggers any visions of code when the error is in a
-file from a dependency module which you haven't worked on in a while or have
-never inspected.
+The B<examples/ae_stack_trace.pl> program does a trace_context call to show all
+the hierrachial call stack in executing a timer callback:
 
-This problem becomes almost unmanageable for any non trivial runtime evaluated
-code, as perl does not report a file.
+	use AnyEvent;
+	use Error::ShowMe;
 
-This module attempts address the lack of recall and 'refresh your memory' by
-presenting code lines immediately before and after the error line. 
+	my $cv=AE::cv;
+	my $timer; $timer=AE::timer 1,0, sub {
+		print STDERR Error::ShowMe::trace_context pre_lines=>10, post_lines=>10;
+		$cv->send;
+	};
+	$cv->recv;
 
+If you have AnyEvent installed, running the program will give an output similar
+to to the following:
+
+	ae_stack_trace.pl
+	1   use AnyEvent;
+	2   use Error::ShowMe;
+	3
+	4   my $cv=AE::cv;
+	5   my $timer; $timer=AE::timer 0,0, sub {
+	6   	print STDERR Error::ShowMe::trace_context pre_lines=>10, post_lines=>10;
+	7   	$timer=undef;
+	8   	$cv->send;
+	9   };
+	10=> $cv->recv;
+
+	    /Users/drclaw/perl5/perlbrew/perls/perl-5.36.0/lib/site_perl/5.36.0/darwin-2level/AnyEvent.pm
+	    2021   sub ready {
+	    2022      $_[0]{_ae_sent}
+	    2023   }
+	    2024
+	    2025   sub recv {
+	    2026      unless ($_[0]{_ae_sent}) {
+	    2027         $WAITING
+	    2028            and Carp::croak "AnyEvent::CondVar: recursive blocking wait attempted";
+	    2029
+	    2030         local $WAITING = 1;
+	    2031=>       $_[0]->_wait;
+	    2032      }
+	    2033
+	    2034      $_[0]{_ae_croak}
+	    2035         and Carp::croak $_[0]{_ae_croak};
+	    2036
+	    2037      wantarray
+	    2038         ? @{ $_[0]{_ae_sent} }
+	    2039         : $_[0]{_ae_sent}[0]
+	    2040   }
+	    2041
+
+		/Users/drclaw/perl5/perlbrew/perls/perl-5.36.0/lib/site_perl/5.36.0/darwin-2level/AnyEvent/Impl/EV.pm
+		78      my ($class, %arg) = @_;
+		79
+		80      EV::idle $arg{cb}
+		81   }
+		82
+		83   sub _poll {
+		84      EV::run EV::RUN_ONCE;
+		85   }
+		86
+		87   sub AnyEvent::CondVar::Base::_wait {
+		88=>    EV::run EV::RUN_ONCE until exists $_[0]{_ae_sent};
+		89   }
+		90
+		91   #sub loop {
+		92   #   EV::run;
+		93   #}
+		94
+		95   =head1 SEE ALSO
+		96
+		97   L<AnyEvent>, L<EV>.
+		98
+
+		    /Users/drclaw/perl5/perlbrew/perls/perl-5.36.0/lib/site_perl/5.36.0/darwin-2level/AnyEvent/Impl/EV.pm
+		    78      my ($class, %arg) = @_;
+		    79
+		    80      EV::idle $arg{cb}
+		    81   }
+		    82
+		    83   sub _poll {
+		    84      EV::run EV::RUN_ONCE;
+		    85   }
+		    86
+		    87   sub AnyEvent::CondVar::Base::_wait {
+		    88=>    EV::run EV::RUN_ONCE until exists $_[0]{_ae_sent};
+		    89   }
+		    90
+		    91   #sub loop {
+		    92   #   EV::run;
+		    93   #}
+		    94
+		    95   =head1 SEE ALSO
+		    96
+		    97   L<AnyEvent>, L<EV>.
+		    98
+
+			ae_stack_trace.pl
+			1   use AnyEvent;
+			2   use Error::ShowMe;
+			3
+			4   my $cv=AE::cv;
+			5   my $timer; $timer=AE::timer 0,0, sub {
+			6=> 	print STDERR Error::ShowMe::trace_context pre_lines=>10, post_lines=>10;
+			7   	$timer=undef;
+			8   	$cv->send;
+			9   };
+			10   $cv->recv;
 
 
 
@@ -97,7 +274,11 @@ presenting code lines immediately before and after the error line.
 
 =over 
 
-=item JSON/HTML and others output formats
+=item Add format options from command line
+
+=item Process syntax checks in parallel
+
+=item JSON/HTML and other output formats
 
 =item Make usable from a Language Server?
 
@@ -106,6 +287,3 @@ presenting code lines immediately before and after the error line.
 =item What would you like?
 
 =back
-
-
-

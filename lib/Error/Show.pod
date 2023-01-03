@@ -254,23 +254,45 @@ Instead of specifing the error option, the trace option allows specifiying
 directly the L<Devel::StackTrace> object to use.
 
 
-
-
-
 =head1 FUTURE WORK/TODO
 
 =over 
-
-=item Add format options from command line
-
-=item Process syntax checks in parallel
-
-=item JSON/HTML and other output formats
 
 =item Make usable from a Language Server?
 
 =item Colour terminal output
 
-=item What would you like?
 
 =back
+
+=head1 SEE ALSO
+
+L<Perl::Syntax> provides syntax checking from the command line. However it
+doesn't show any errors by design (only interested in process return code)
+
+L<Syntax::Check> provides programic syntax checking of files.
+
+=head1 AUTHOR
+
+Ruben Westerberg, E<lt>drclaw@mac.comE<gt>
+
+=head1 REPOSITORTY and BUGS
+
+Please report any bugs via git hub: L<http://github.com/drclaw1394/perl-error-show>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2022 by Ruben Westerberg
+
+This library is free software; you can redistribute it
+and/or modify it under the same terms as Perl or the MIT
+license.
+
+=head1 DISCLAIMER OF WARRANTIES
+
+THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS
+OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE.
+=cut
+

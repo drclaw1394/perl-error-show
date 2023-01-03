@@ -6,9 +6,9 @@ use warnings;
 
 ######################################
 # my $do_warnings;                   #
- $SIG{__WARN__}=sub {               #
+#$SIG{__WARN__}=sub {               #
    #print STDERR @_ if $do_warnings; #
- }; #Disable warnings;              #
+   #}; #Disable warnings;              #
 ######################################
 
 #use Exporter qw<import>;
@@ -112,7 +112,7 @@ sub import {
   my $runnable=not $options{check};
   #for my $file(@file){
 		next unless -f $file;
-		my @cmd= ($^X , @extra, "-c", "-Mwarnings=experimental",  $file);
+		my @cmd= ($^X , @extra, "-c",  $file);
 
 		my $pid = open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
 		my $result=<$chld_err>;
@@ -227,7 +227,6 @@ sub context{
   }
   else {
       #Assume the line and file are specified manually
-      die "Line and file not specified" unless exists($opts{line}) and exists($opts{file});
 	    $error=undef;# if defined $opts{line};
   }
 
@@ -248,7 +247,7 @@ sub context{
   # Here we want to read the file with the error in it. This might not
   # be the program file specified, but a module
   #
-	my $prog;
+	my $prog="";
 	if(ref($program)){
 		$prog=$$program;	
 		$opts{file}//="EVAL";

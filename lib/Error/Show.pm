@@ -1,4 +1,4 @@
-package Error::ShowMe;
+package Error::Show;
 
 use 5.024000;
 use strict;
@@ -14,51 +14,97 @@ our %EXPORT_TAGS = ( 'all' => [ qw(
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} });
 
-our @EXPORT = qw(
+our @EXPORT = qw();
 
-	
-);
 my @valid_errors=(
 	"Can't find string terminator"
 );
 
-our $VERSION = '0.01';
+our $VERSION = 'v0.1.0';
 use constant DEBUG=>0;
 use IPC::Open3;
 use Symbol 'gensym'; # vivify a separate handle for STDERR
 
 sub context;
-#A list of top level file paths or scalar refs to check for syntax errors
 
+#
+# A list of top level file paths or scalar refs to check for syntax errors
+#
 my @IINC;
+
+
+ 
 sub import {
 	my $package=shift;
 	my @caller=caller;
-	my %options=@_;
-	if($caller[2]){
-		#A nonzero line means included in code, not from command line
-		#process export requests
+	my @options=@_;
 
+
+	if($caller[2]){
+    # 
+    # A nonzero line means included in code, not from command line, 
+    # process export requests.
+    #
 		return;
 	}
-	
 
-	#need to find out the any extra lib paths used. Fork and print out the defaults
-	#Only run it the first time its used
+  # 
+  # CLI Options include 
+  #   check  =>  check only
+  #   json    =>  output as json instead of normal errors
+  
+  my %options;
+  $options{check}=grep /check/, @options;
+  $options{format}=grep /json/, @options;
+	
+  #
+  # 1. Command line argument activation ie -MError::Show
+  #
+  # Find out any extra lib paths used. To do this we:
+  #
+  # a. fork/exec a new perl process using the value of $^X. 
+  # b. The new process dumps the @INC array to STDOUT
+  # c. This process reads the output and stores in @IINC
+  #
+	# Only run it the first time its used
+  # Is this the best way? Not sure. At least this way there is no argument
+  # processing, perl process does it for us.
+  #
+  #
 	@IINC=map {chomp; $_} do {
 		open my $fh, "-|", $^X . q| -E 'map print("$_\n"), @INC'| or die "$!";
 		<$fh>;
 	} unless @IINC;
 
-	#Extract the extra include paths
+  #
+	# 2. Extract the extra include paths
+  #
+  # Built up the 'extra' array of any include paths not already listed 
+  # from the STDOUT dumping above
+  #
 	my @extra=map  {("-I", $_)} grep {my $i=$_; !grep { $i eq $_} @IINC} @INC;
 
 
+
+  # 
+  # 3. Syntax checking the program
+  #
+  # Now we have the include paths sorted,
+  # a. fork/exec again, this time with the -c switch for perl to check syntax
+  # b. slurp STDERR from child process
+  # c. execute the context routine to parse and show more source code context
+  # d. print!
+  # The proc
+
 	local $/=undef;
-	for my $file($0, @ARGV){
+  my $file=$0;
+
+  #push @file, @ARGV;
+
+  my $runnable=not $options{check};
+  #for my $file(@file){
 		next unless -f $file;
 		my @cmd= ($^X , @extra, "-c",  $file);
-		#print "COMMand: ".join(" ", @cmd)."\n";
 
 		my $pid = open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
 		my $result=<$chld_err>;
@@ -67,9 +113,29 @@ sub import {
 		close $chld_err;
 		wait;
 
-		print STDERR context(error=>$result, $file)."\n";
-	}
-	exit;
+    my $status=context(error=>$result, program=>$file)."\n";
+
+    #
+    # Report file syntax status unless stealth was specified
+    #
+		print STDERR $status;
+
+    #
+    # Mask runnable 
+    #
+    $runnable&&=$status =~ /syntax OK/;
+    
+    #}
+
+  #
+  # 4. Conditional Execution
+  # 
+  # Unless the -c option was specified, or more than one source file, continue
+  # the execution of the script
+  #
+
+  exit unless $runnable;
+
 }
 
 #Take an error string and attempt to contextualize it
@@ -79,15 +145,64 @@ sub context{
 	DEBUG and say STDERR "IN context call";
 	my ($package, $file, $caller_line)=caller;
 
-	my $program=pop(@_);	#Program is the last argument
-	$program//=$file; 	#Or use the caller if it is undefined
+	# 
+  # Error is set by single argument, key/value pair, or if no
+  # argument $@ is used
+  #
+  my $error;
 
-	#return if ref $error;	#Only want to handle syntax errors?
-	
+  if(@_==0){
+    $error=$@;
+  }
+  elsif(@_==1){
+    $error=shift;
+  }
+
+  my $program;
+
+  #	
+  # Remaining arguments are to be key/value options
+  #
 	my %opts=@_;
+	$error//= $opts{error};
 
-	#Error is set by hash or not supplied tries the $@ variable
-	my $error= $opts{error}//$@;
+  $program=$opts{program};
+
+  # 
+  # If no program has been specifed yet, attempt to extract from the actual
+  # error message.
+  #
+  unless($program){
+    my $ref=ref $error;
+    unless($ref){
+      ($program, undef)=split "/n", $error, 2 unless($program);
+
+      chomp $program;
+      #
+      # Compile time errors list filename on first line by itself
+      # Run time exceptions will have the location informaiton appended to the line
+      # for normal string exceptions(die) and actual exceptions (eg divide by
+      # zero).
+      # However If the message has a newline or is an ref or object, then the
+      # location information  is not appended and manual manipulation is required.
+      #
+      if($program=~/at (.*) line (\d+)\.$/){
+        # Runtime error/exception
+        $program=$1;
+      }
+      else {
+        #compile time
+      }
+    }
+    else {
+      #Assume an object with __FILE__ and __LINE__
+      $program=$opts{file}=$error->file;
+      $opts{line}=$error->line;
+    }
+  }
+
+  #$program//=$file; 	#Or use the caller if it is undefined
+
 	$error=undef if defined $opts{line};
 
 	return unless $error or $opts{line};
@@ -107,6 +222,7 @@ sub context{
 		$opts{file}//="EVAL";
 	}
 	elsif($program){
+    return $error unless -f $program; #Abort if we can't access the file
 		#file path
 		$prog=do {
 			open my $fh, "<", $program or die "Could not open file for reading";
@@ -153,8 +269,6 @@ sub context{
 	$min>$_ and $min=$_ for @error_lines;
 	$max<$_ and $max=$_ for @error_lines;
 
-	#$min-=1;
-	#$max-=1;
 
 	#Adjust start and end posision with offset
 	$start+=$opts{offset_start};
@@ -195,31 +309,30 @@ sub context{
 	DEBUG and say STDERR "TRANSFORMED: $out";
 	$out
 }
-
-sub trace_context {
-	#my $program=pop;
-	my %opts=@_;
+sub tracer{
+  my $trace;
+  if(@_==0){
+    $trace=$@->trace;
+  }
+  elsif(@_==1){
+    $trace=shift;
+    unless(ref($trace) eq "Devel::TraceStack"){
+      $trace=$trace->trace;
+    }
+  }
+  my %opts=@_;
+  $trace//=$opts{trace};#Devel::StackTrace;
+  $trace//=$opts{error}->trace;
 	my $_indent=$opts{indent}//="    ";
-
-	$opts{error}//=$@;
-	my @caller;
-	my $i=0; #skip the call to this sub
-	my @frames;
-	while(@caller=caller($i++)){
-		push @frames,[@caller];
-	}
-	my $out="";
-	@frames =reverse @frames;
 	my $current_indent="";
-	for my $caller (@frames){
-		$opts{line}=$caller->[2];
-		$opts{indent}=$current_indent;
-		$out.=context %opts, $caller->[1];
-		$out.="\n";
-		$opts{error}=undef;
-		$current_indent.=$_indent;
-	}
-	$out;
+  # from top (most recent) of stack to bottom.
+  my $out="";
+  while ( my $frame = $trace->prev_frame ) {
+		  $opts{indent}=$current_indent;
+      $out.=context %opts, program=>$frame->filename, line=>$frame->line;
+		  $current_indent.=$_indent;
+  }
+  $out;
 }
 
 1;

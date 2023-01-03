@@ -125,9 +125,20 @@ B<NOTE:>It is important that it's the first C<-M> switch.
 
 Additional C<@INC> directories and perl switches can also be used as per normal.
 
+B<Syntax Checking Options>
+
+=head4 check
+
 If you are only requiring syntax checking (no execution), specify the B<check> option:
 
   perl -MError::Show=check file.pl
+
+
+=head4 clean
+
+If you prefer just the code context without the perl error,  add the clean option
+
+  perl -MError::Show=clean file.pl
 
 
 =head2 Exception (in program) Usage
@@ -204,6 +215,13 @@ specifiy the maximum lines of code to display before the error line. Default is
 
 specifiy the maximum lines of code to display after the error line. Default is
 5.
+
+=head4 clean
+
+  clean=>bool
+
+When true, the normal perl error string is not included in the context
+information, for a cleaner look.
 
 
 =head3 Error::Show::tracer

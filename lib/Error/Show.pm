@@ -4,6 +4,13 @@ use 5.024000;
 use strict;
 use warnings;
 
+######################################
+# my $do_warnings;                   #
+ $SIG{__WARN__}=sub {               #
+   #print STDERR @_ if $do_warnings; #
+ }; #Disable warnings;              #
+######################################
+
 #use Exporter qw<import>;
 use base "Exporter";
 
@@ -52,10 +59,11 @@ sub import {
   # CLI Options include 
   #   check  =>  check only
   #   json    =>  output as json instead of normal errors
-  
   my %options;
   $options{check}=grep /check/, @options;
-  $options{format}=grep /json/, @options;
+  my $clean=grep /clean/, @options;
+
+  #$do_warnings=grep /warn/, @options;
 	
   #
   # 1. Command line argument activation ie -MError::Show
@@ -104,7 +112,7 @@ sub import {
   my $runnable=not $options{check};
   #for my $file(@file){
 		next unless -f $file;
-		my @cmd= ($^X , @extra, "-c",  $file);
+		my @cmd= ($^X , @extra, "-c", "-Mwarnings=experimental",  $file);
 
 		my $pid = open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
 		my $result=<$chld_err>;
@@ -113,7 +121,7 @@ sub import {
 		close $chld_err;
 		wait;
 
-    my $status=context(error=>$result, program=>$file)."\n";
+    my $status=context(clean=>$clean, error=>$result, program=>$file)."\n";
 
     #
     # Report file syntax status unless stealth was specified
@@ -143,13 +151,14 @@ sub import {
 sub context{
 	#use feature ":all";
 	DEBUG and say STDERR "IN context call";
-	my ($package, $file, $caller_line)=caller;
+  #my ($package, $file, $caller_line)=caller;
 
 	# 
   # Error is set by single argument, key/value pair, or if no
   # argument $@ is used
   #
   my $error;
+	my %opts=@_;
 
   if(@_==0){
     $error=$@;
@@ -157,27 +166,39 @@ sub context{
   elsif(@_==1){
     $error=shift;
   }
+  else {
+	  $error= $opts{error};
+  }
 
   my $program;
 
   #	
   # Remaining arguments are to be key/value options
   #
-	my %opts=@_;
-	$error//= $opts{error};
 
+  # 
+  # Program is the original application file or string ref
+  #
   $program=$opts{program};
 
   # 
   # If no program has been specifed yet, attempt to extract from the actual
   # error message.
   #
-  unless($program){
-    my $ref=ref $error;
-    unless($ref){
-      ($program, undef)=split "/n", $error, 2 unless($program);
+  #unless($program){
 
-      chomp $program;
+
+  # 
+  # If we have an error stirng/object extract what we need
+  #
+  if($error){
+    my $ref=ref $error;
+
+    unless($ref){
+      my $first="";
+      ($first)=split "\n", $error;
+
+      chomp $first;
       #
       # Compile time errors list filename on first line by itself
       # Run time exceptions will have the location informaiton appended to the line
@@ -186,24 +207,32 @@ sub context{
       # However If the message has a newline or is an ref or object, then the
       # location information  is not appended and manual manipulation is required.
       #
-      if($program=~/at (.*) line (\d+)\.$/){
+      if($first=~/at (.*) line (\d+)/){
         # Runtime error/exception
-        $program=$1;
+        #$program=
+        $opts{file}=$1;
+        $opts{line}=$2;
       }
       else {
-        #compile time
+        #Assume no error
+        #say STDERR "Error::Show - TROUBLE DETECTING ERROR FILE AND LINE";
       }
     }
     else {
       #Assume an object with __FILE__ and __LINE__
-      $program=$opts{file}=$error->file;
+      #$program=
+      $opts{file}=$error->file;
       $opts{line}=$error->line;
     }
+  }
+  else {
+      #Assume the line and file are specified manually
+      die "Line and file not specified" unless exists($opts{line}) and exists($opts{file});
+	    $error=undef;# if defined $opts{line};
   }
 
   #$program//=$file; 	#Or use the caller if it is undefined
 
-	$error=undef if defined $opts{line};
 
 	return unless $error or $opts{line};
 	$opts{start_mark}//=qr|.*|;	#regex which matches the start of the code 
@@ -215,21 +244,24 @@ sub context{
 	$opts{indent}//="";
 	$opts{file}//="";
 
-
+  #
+  # Here we want to read the file with the error in it. This might not
+  # be the program file specified, but a module
+  #
 	my $prog;
 	if(ref($program)){
 		$prog=$$program;	
 		$opts{file}//="EVAL";
 	}
-	elsif($program){
-    return $error unless -f $program; #Abort if we can't access the file
+	elsif($opts{file}){
+    return $error unless -f $opts{file}; #Abort if we can't access the file
 		#file path
 		$prog=do {
-			open my $fh, "<", $program or die "Could not open file for reading";
+			open my $fh, "<", $opts{file} or die "Could not open file for reading";
 			local $/=undef;
 			<$fh>;
 		};
-		$opts{file}||=$program;	#set filename
+    $opts{file}||=$program;	#set filename
 	}
 	else {
 		#Use caller?
@@ -241,7 +273,7 @@ sub context{
 
 	
 	#Break up error message into lines
-	#TODO: only need to process pre_lines+1+post_lines  instead of the hole file....
+	#TODO: only need to process pre_lines+1+post_lines  instead of the whole file....
 	my @lines=map { $start = $line++ if !defined($start) .. /$opts{start_mark}/;$_."\n" } split "\n", $prog;
 	
 	DEBUG and say STDERR "LINES:\n", @lines;
@@ -263,6 +295,7 @@ sub context{
 		#Assume a target line
 		push @error_lines, $opts{line}-1;
 	}
+
 	my $min=$error_lines[0];
 	my $max=$error_lines[0];
 
@@ -284,12 +317,7 @@ sub context{
 	my $f_len=length("$max");
 
 	my $out="$opts{indent}$opts{file}\n";
-	if(defined $error){
-		$out.=join "\n", 
-		map {$opts{indent}.$_ }
-		split "\n", $error;
-		$out.="\n";
-	}
+  $out.="\n";
 	
 	my $indent=$opts{indent}//"";
 	my $format="$indent%${f_len}d% 2s %s";
@@ -305,6 +333,17 @@ sub context{
 		$out.=sprintf $format, $l+1, $mark, $lines[$l];
 
 	}
+
+  unless($opts{clean}){
+    $out.="\n";
+
+    if(defined $error){
+      $out.=join "\n", 
+      map {$opts{indent}.$_ }
+      split "\n", $error;
+      $out.="\n";
+    }
+  }
 
 	DEBUG and say STDERR "TRANSFORMED: $out";
 	$out
@@ -329,7 +368,7 @@ sub tracer{
   my $out="";
   while ( my $frame = $trace->prev_frame ) {
 		  $opts{indent}=$current_indent;
-      $out.=context %opts, program=>$frame->filename, line=>$frame->line;
+      $out.=context %opts,file=>$frame->filename, line=>$frame->line;
 		  $current_indent.=$_indent;
   }
   $out;

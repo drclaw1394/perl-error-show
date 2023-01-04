@@ -35,13 +35,14 @@ To something a little more helpful, with no modifications:
   
 
 
+Honours perl -c, -w, -W and  -X flags.  To only perform a syntax check, use the
+-c flag like normal.  To enable showing context for warnings during a check,
+use -w -W  or -X flags.
 
+	perl -MError::Show -c examples/file_syn_error1.pl 
+	perl -MError::Show -c -w examples/file_syn_error1.pl 
 
-To only perform a syntax check only (no run):
-
-	perl -MError::Show=check examples/file_syn_error1.pl 
-
-Works with other perl flags and arguments:
+Also honours -I flags to allow user include paths:
 
 	perl -I my_lib -MError::Show -MAnother::Module  path/to/file.pl
 
@@ -90,7 +91,7 @@ code are required. Very handy!
   perl -MError::Show  path_to_your_script
 
 This will execute your script if no syntax problems where found, or it will
-display the code context of the error.
+display the code context of the first error.
 
 
 =item 2. Exception supplimental contextual information
@@ -118,7 +119,6 @@ print before and after the target line, indenting  prefix etc.
 No symbols are exported and as such they must be accesses via the package name.
 
 =head1 WHY USE THIS MODULE?
-
 
 =over
 
@@ -148,7 +148,8 @@ aid in debugging or error reporting.
 
 =head2 Command Line usage (Syntax checking)
 
-	perl -MError::Show  file.pl 
+
+	perl -MError::Show  [options] file.pl 
 
 When included in a command line switch to perl C<-MError::Show>, it syntax
 checks the input program. If the syntax is good, normal execution continues.
@@ -160,14 +161,12 @@ B<NOTE:>It is important that it's the first C<-M> switch.
 Additional C<@INC> directories and perl switches can also be used as per
 normal.
 
+The -c -w -X -W -I flags are honoured when the script is being checked
+internally, to give as transparent as possible script checking before
+executing.
+
 B<Syntax Checking Options>
 
-=head4 check
-
-If you are only requiring syntax checking (no execution), specify the B<check>
-option:
-
-  perl -MError::Show=check file.pl
 
 
 =head4 clean
@@ -307,6 +306,15 @@ Please see the examples directory in this distribution
 
 
 =back
+
+=head1 KNOWN ISSUES/GOTCHAS
+
+Checking/running  programs via the -e and -E switches is not supported and will
+die with an error message.
+
+Only the first error in the perl error messages is used to find the context.
+Hopefully it's the right one ;) 
+
 
 =head1 SEE ALSO
 

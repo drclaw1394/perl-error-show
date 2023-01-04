@@ -43,10 +43,10 @@ my $path=$dirname."/require.t.pl";
 #do $path or  $@ and say STDERR Error::Show::context $path, $@ ;
 
 say STDERR "Testing require try catch";
-try {
+eval {
 	require $path;
-}
-catch ($e){
+};
+if($@){
 	#say STDERR"try catch error $e";
-	say STDERR Error::Show::context indent=>"xxxx", error=>$e, $path
+	say STDERR Error::Show::context indent=>"xxxx", error=>$@, $path
 }

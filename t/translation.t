@@ -1,8 +1,7 @@
-use v5.36;
 use strict;
 use warnings;
-use feature "try";
 
+use feature "say";
 use Test::More tests=>1;
 
 use Error::Show;
@@ -20,12 +19,12 @@ use Carp qw<verbose croak>;
 
 	my $ret;
 	local $SIG{__DIE__}=sub { say STDERR "HOOK", $_[0]};
-	try {
+	eval {
 		$ret=level1;
 
-	}
-	catch($e){
-		say "CAUGHT ERROR", $e;
+	};
+	if($@){
+		say STDERR "CAUGHT ERROR", $@;
 
 	}
 	ok !defined $ret;

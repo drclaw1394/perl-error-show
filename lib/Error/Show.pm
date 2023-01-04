@@ -3,6 +3,7 @@ package Error::Show;
 use 5.024000;
 use strict;
 use warnings;
+use Carp;
 
 ######################################
 # my $do_warnings;                   #
@@ -287,7 +288,8 @@ sub context{
 		$error=~s/line (\d+)/do{push @error_lines, $1-1+$translation;"line ".($1-$start+$translation)}/eg;
 		$error=~s/\(eval (\d+)\)/"(".$opts{file}.")"/eg;
 
-		return "$program syntax OK" unless @error_lines;
+    
+		return "$program syntax OK" if $program and !@error_lines;
 		@error_lines=(shift @error_lines);
 	}
 	else {
@@ -347,30 +349,62 @@ sub context{
 	DEBUG and say STDERR "TRANSFORMED: $out";
 	$out
 }
+
+
+#
+# This only works with errors objects which captured a trace as a Devel::StackTrace object
+#
 sub tracer{
   my $trace;
+  my $error;
+  my %opts;
   if(@_==0){
-    $trace=$@->trace;
+    $opts{error}=$@;
   }
   elsif(@_==1){
-    $trace=shift;
-    unless(ref($trace) eq "Devel::TraceStack"){
-      $trace=$trace->trace;
+    $opts{error}=shift;
+  }
+  else {
+    %opts=@_;
+  }
+
+  if(ref($opts{error})){
+    $@=undef;
+    eval {
+        $opts{trace}=$opts{error}->trace;
+    };
+    if($@){
+        carp "Could not call trace method on error (error not an object?)";
+        return "";
     }
   }
-  my %opts=@_;
-  $trace//=$opts{trace};#Devel::StackTrace;
-  $trace//=$opts{error}->trace;
+  else {
+    #say "trace is: ".$opts{trace};
+    if (ref($opts{trace}) ne "Devel::StackTrace"){
+      
+      carp "Error does not have trace or is not a Devel::TraceStack object";
+      return "";
+    }
+  }
+
+
+
+  $error=delete($opts{error})//"";
+  $trace=$opts{trace};
+  $opts{clean}=1;   #for clean
+
 	my $_indent=$opts{indent}//="    ";
 	my $current_indent="";
   # from top (most recent) of stack to bottom.
   my $out="";
   while ( my $frame = $trace->prev_frame ) {
 		  $opts{indent}=$current_indent;
-      $out.=context %opts,file=>$frame->filename, line=>$frame->line;
+      $out.=context %opts, file=>$frame->filename, line=>$frame->line;
 		  $current_indent.=$_indent;
   }
-  $out;
+  
+  $out.=$error;
+  #$out;
 }
 
 1;

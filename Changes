@@ -1,6 +1,6 @@
 Revision history for Perl extension Error::Context.
 
-0.01  Fri Aug 26 08:28:19 2022
+v0.1.0  Fri Aug 26 08:28:19 2022
 	- original version; created by h2xs 1.23 with options
 		-n Error::Context -X -b v5.24.0
 

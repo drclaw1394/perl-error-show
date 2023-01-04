@@ -5,13 +5,12 @@ use feature "try";
 
 use Test::More tests=>1;
 
-use Error::ShowMe;
+use Error::Show;
 use Carp qw<verbose croak>;
 
 
 {
 	sub level2 {
-		#Error::ShowMe::dump_trace 
 		croak [];#"asdf";
 	}
 
@@ -27,7 +26,6 @@ use Carp qw<verbose croak>;
 	}
 	catch($e){
 		say "CAUGHT ERROR", $e;
-		#say STDERR Error::ShowMe::context _;
 
 	}
 	ok !defined $ret;

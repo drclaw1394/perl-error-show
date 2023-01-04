@@ -5,20 +5,20 @@ Error::Show - Show context of syntax errors and exceptions
 =head1 SYNOPSIS
 
 
-Run a script without modifcation. In the case of a syntax error, show code
-surrounding the error, and highight the error source:
+From the command line changes an error like this:
 
-  
-  #Run script from examples directory. Has deliberate syntax error
-	perl -MError::Show  examples/file_syn_erro1.pl
-
-  #OUTPUT
-
-  examples/file_syn_error1.pl
+  ->perl examples/file_syn_error1.pl              
   "use" not allowed in expression at examples/file_syn_error1.pl line 9, at end of line
   syntax error at examples/file_syn_error1.pl line 9, near "adf
   use Socket"
-  examples/file_syn_error1.pl had compilation errors.
+  Execution of examples/file_syn_error1.pl aborted due to compilation errors.
+
+
+To something a little more helpful, with no modifications:
+
+  ->perl  -MError::Show examples/file_syn_error1.pl
+  examples/file_syn_error1.pl
+
    4   my $time=time;
    5   for(1..1000){
    6   	print "$_\n";
@@ -27,6 +27,14 @@ surrounding the error, and highight the error source:
    9=> use Socket;
   10   
   11   print "this will never work";
+
+  "use" not allowed in expression at examples/file_syn_error1.pl line 9, at end of line
+  syntax error at examples/file_syn_error1.pl line 9, near "adf
+  use Socket"
+  examples/file_syn_error1.pl had compilation errors.
+  
+
+
 
 
 To only perform a syntax check only (no run):
@@ -39,11 +47,11 @@ Works with other perl flags and arguments:
 
 
 
-Use at runtime to suppliment exception handling:
+Use at runtime to supplement exception handling:
 
   use Error::Show;
 
-  #an die or eval triggers an exception
+  #an die caught in a try/eval triggers an exception
 
   #No argument uses $@ as error
   say STDERR Error::Show;     
@@ -51,92 +59,121 @@ Use at runtime to suppliment exception handling:
   #or a single exception argument of your choosing
   say STDERR Error::Show $@;  
 
-
   #Or customise the report format, line, program information
   say STDERR Error::Show line=>123, ... , error=>$e;
-    
 
+
+Generate context for your stack traces with L<Exception::Class::Base>:
+
+  #supports no argument ($@), single argument or option pairs as
+  #Error::Show::context does
+  say STDERR Error::Show::tracer error=>$e;
+
+Or supply a L<Devel::StackTrace> object directly 
+
+  say STDERR Error::Show::tracer trace=>$my trace;
+    
 
 
 =head1 DESCRIPTION
 
-This module aids in debugging and processing acceptions and errors in your
+This module aids in debugging and processing exceptions and errors in your
 code. It does this in two modes of operation:
   
 =over 
 
 =item 1. Syntax checking with contextual information
 
-This is done at compile time from the command line. No modifcations to existing
+This is done at compile time from the command line. No modifications to existing
 code are required. Very handy!
 
   perl -MError::Show  path_to_your_script
 
-This will run your script if no syntax problems where found, or it will display
-the code context of the error.
+This will execute your script if no syntax problems where found, or it will
+display the code context of the error.
 
 
 =item 2. Exception supplimental contextual information
 
-Interoperates with perl 'basic string' exceptions and CPAN exception modules,
-to provide additional information (ie code context) of an exception.
+Interoperates with perl 'basic string' exceptions and CPAN exception modules
+(L<Exception::Class::Base> or L<Exception::Base> are recommended by not
+required) to provide additional information (i.e. code context) of an
+exception.
 
 =back
 
-This B<is not> an exception base class, but can operate with object execptions.
+This B<is not> an exception base class, but can operate with object exceptions.
 The only requirement is the exception object responds to stringifcation and has
-a C<file> and C<line> method.
+a C<file> and C<line> method. A C<trace> method (returning a
+L<Devel::StackTrace> object is also required for the  C<Error::Show::trace>
+function to work as intended.
 
 The information generates can be though of as an expanded stack trace. Instead
-of just the function name and location generated in a normal stacktrace, the
+of just the function name and location generated in a normal stack trace, the
 actual lines of code are also reported.
 
-
-A handfull of options provided basic configuration of how many lines of code to
+A handful of options provided basic configuration of how many lines of code to
 print before and after the target line, indenting  prefix etc.
 
 No symbols are exported and as such they must be accesses via the package name.
 
 =head1 WHY USE THIS MODULE?
 
-If your code doesn't compile, you can't use a custom execption class can you?
+
+=over
+
+=item 1. Small and fast
+
+L<Perl::Critic> is a fine tool. But it is large and complex and is focused on
+your style and not syntax errors. Perl obviously tells you about syntax errors,
+but this modules just makes it a little nicer to visualise.
+
+
+=item 2. No dependencies
+
+If your code doesn't compile, you can't use a custom exception class can you?
 This will provide context information on syntax error directly from the command
-line and doesn't need to be a dependency of your code.
+line and doesn't need to be a dependency of your code. It also does not require
+any Exception modules.
 
+=item 3. Doesn't force a philosophy
 
-Equally important, this module doesn't get in the way of using nice execption
-classes during run time. It suppliments them. You can choose when to use it to
-aid in debugging.
+Equally important, this module doesn't get in the way of using nice exception
+classes during run time. It supplements them. You can choose when to use it to
+aid in debugging or error reporting.
 
+=back
 
-
-=head1 API
+=head1 USAGE
 
 =head2 Command Line usage (Syntax checking)
 
 	perl -MError::Show  file.pl 
 
 When included in a command line switch to perl C<-MError::Show>, it syntax
-checks the input program. If the syntax is good, normal executution continues.
-Othewise detailed code context surrounding the source of the error is generated
-and printed on STDOUT.
+checks the input program. If the syntax is good, normal execution continues.
+Otherwise detailed code context surrounding the source of the error is
+generated and printed on STDERR.
 
 B<NOTE:>It is important that it's the first C<-M> switch.
 
-Additional C<@INC> directories and perl switches can also be used as per normal.
+Additional C<@INC> directories and perl switches can also be used as per
+normal.
 
 B<Syntax Checking Options>
 
 =head4 check
 
-If you are only requiring syntax checking (no execution), specify the B<check> option:
+If you are only requiring syntax checking (no execution), specify the B<check>
+option:
 
   perl -MError::Show=check file.pl
 
 
 =head4 clean
 
-If you prefer just the code context without the perl error,  add the clean option
+If you prefer just the code context without the perl error,  add the clean
+option
 
   perl -MError::Show=clean file.pl
 
@@ -158,7 +195,7 @@ Simply bring L<Error::Show> into your program with a use statement:
 Takes an error string, or exception object and extracts the code surrounding
 the source of the error. 
 
-Return value is original error stringyfied with the formated multiline stirng
+Return value is original error stringified with the formatted multi line string
 of code, with prefixed line numbers, and a 'fat arrow' maker indicating the
 line which causes the error to occur:
 
@@ -173,10 +210,10 @@ line which causes the error to occur:
 In the first form (1), the C<$@> variable is implicitly used as the error. No
 processing options can be supplied in this form.
 
-In the second form (2), the a single argument is supplied, which becomes the
-error to process. No processing options can be supplied in this form.
+In the second form (2), a single argument is supplied, which becomes the error
+to process. No processing options can be supplied in this form.
 
-In the thir for (3), all options are provided as key value pairs. The required
+In the third for (3), all options are provided as key value pairs. The required
 key is B<error>,with a value corresponding to the error value.
 
 Internally if the error is a simple perl string, the B<program> and B<line>
@@ -185,7 +222,7 @@ expected to be an object responding to stringificaton, file, and line methods.
 L<Exception::Base> and L<Exception::Class::Base>  provides this interface for
 example.
 
-Options inlcude: 
+B<Options include:>
 
 =head4 program
 
@@ -193,27 +230,27 @@ Options inlcude:
   program => \$string
 
 Manual override of the program source file. If the value is a normal scalar, it
-is treated as a path. If it is a reference, it is treated as a refernce to the
-body of the program stored in a stirng.
+is treated as a path. If it is a reference, it is treated as a reference to the
+body of the program stored in a string.
 
 =head4 line
     
     line=>value
 
-Manual overirde of the line number within the program where the error occured.
+Manual override of the line number within the program where the error occurred.
 
 =head4 pre_lines
 
   pre_lines=>value
 
-specifiy the maximum lines of code to display before the error line. Default is
+Specific the maximum lines of code to display before the error line. Default is
 5.
 
 =head4 post_lines
 
   post_lines=>value
 
-specifiy the maximum lines of code to display after the error line. Default is
+Specific the maximum lines of code to display after the error line. Default is
 5.
 
 =head4 clean
@@ -235,10 +272,13 @@ Repeatedly calls C<Error::Show::context> for each level the call stack
 represented by a L<Devel::StackTrace> object.  Takes the same option pairs as
 L<Error::Show::context>.
 
+It forces the B<clean> option for each level of stack trace. The stringified
+error is appended at the end.
+
 B<NOTE:>This assumes the error input is an object that responds to the B<trace>
 method and not a simple perl string error. See the trace option below.
 
-Additional Options:
+B<Additional Options:>
 
 =head4 indent
   
@@ -250,9 +290,12 @@ The string to use for each level of indent. Defaults to 4 spaces.
 
   trace=>devel_stack_trace
 
-Instead of specifing the error option, the trace option allows specifiying
+Instead of specifying the error option, the trace option allows specifying
 directly the L<Devel::StackTrace> object to use.
 
+=head1 EXAMPLES
+
+Please see the examples directory in this distribution
 
 =head1 FUTURE WORK/TODO
 
@@ -270,7 +313,9 @@ directly the L<Devel::StackTrace> object to use.
 L<Perl::Syntax> provides syntax checking from the command line. However it
 doesn't show any errors by design (only interested in process return code)
 
-L<Syntax::Check> provides programic syntax checking of files.
+L<Syntax::Check> provides programmatic syntax checking of files.
+
+L<Perl::Critic> gives actual perl linting, but not great for syntax errors.
 
 =head1 AUTHOR
 
@@ -278,15 +323,15 @@ Ruben Westerberg, E<lt>drclaw@mac.comE<gt>
 
 =head1 REPOSITORTY and BUGS
 
-Please report any bugs via git hub: L<http://github.com/drclaw1394/perl-error-show>
+Please report any bugs via git hub:
+L<http://github.com/drclaw1394/perl-error-show>
 
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2022 by Ruben Westerberg
 
-This library is free software; you can redistribute it
-and/or modify it under the same terms as Perl or the MIT
-license.
+This library is free software; you can redistribute it and/or modify it under
+the same terms as Perl or the MIT license.
 
 =head1 DISCLAIMER OF WARRANTIES
 
@@ -295,4 +340,3 @@ OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
 PARTICULAR PURPOSE.
 =cut
-

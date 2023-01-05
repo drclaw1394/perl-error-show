@@ -246,13 +246,15 @@ sub context{
       # However If the message has a newline or is an ref or object, then the
       # location information  is not appended and manual manipulation is required.
       #
-      if($first=~/at (.*) line (\d+)/){
+      if($first=~/at (.*?) line (\d+)/){
         # Runtime error/exception
         #$program=
+        DEBUG and say STDERR "DID MATCH PERL ERROR STRING";
         $opts{file}=$1;
         $opts{line}=$2;
       }
       else {
+        DEBUG and say STDERR "DID NOT MATCH PERL ERROR STRING";
         #Assume no error
       }
     }
@@ -269,7 +271,8 @@ sub context{
   }
 
   #$program//=$file; 	#Or use the caller if it is undefined
-
+  DEBUG and say STDERR "ABOUT TO parse perl error code";
+  DEBUG and say STDERR "FIle is $opts{file}";
 
 	return unless $error or $opts{line};
 	$opts{start_mark}//=qr|.*|;	#regex which matches the start of the code 

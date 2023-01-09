@@ -4,4 +4,4 @@ use warnings;
 use feature "refaliasing";
 
 \my $alias=\"HELLO";
-print $alias;
+print STDERR $alias;

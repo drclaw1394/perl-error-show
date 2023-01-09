@@ -52,10 +52,9 @@ sub import {
 
   # 
   # CLI Options include 
-  #   check  =>  check only
-  #   json    =>  output as json instead of normal errors
+
   my %options;
-  #$options{check}=grep /check/, @options;
+
   my $clean=grep /clean/, @options;
 
 
@@ -197,7 +196,7 @@ sub context{
   # argument $@ is used
   #
   my $error;
-	my %opts=@_;
+	my %opts;
 
   if(@_==0){
     $error=$@;
@@ -206,6 +205,7 @@ sub context{
     $error=shift;
   }
   else {
+    %opts=@_;
 	  $error= $opts{error};
   }
 
@@ -250,6 +250,7 @@ sub context{
         # Runtime error/exception
         #$program=
         DEBUG and say STDERR "DID MATCH PERL ERROR STRING";
+        DEBUG and say STDERR $first;
         $opts{file}=$1;
         $opts{line}=$2;
       }
@@ -266,15 +267,16 @@ sub context{
     }
   }
   else {
-      #Assume the line and file are specified manually
+      #Assume the line and file are specified manually, or there really is no error
 	    $error=undef;# if defined $opts{line};
+      return "" unless $opts{file} and $opts{line};
   }
 
   #$program//=$file; 	#Or use the caller if it is undefined
   DEBUG and say STDERR "ABOUT TO parse perl error code";
   DEBUG and say STDERR "FIle is $opts{file}";
 
-	return unless $error or $opts{line};
+	return "" unless $error or $opts{line};
 	$opts{start_mark}//=qr|.*|;	#regex which matches the start of the code 
 	$opts{pre_lines}//=5;		#Number of lines to show before target line
 	$opts{post_lines}//=5;		#Number of lines to show after target line
@@ -289,12 +291,14 @@ sub context{
   # be the program file specified, but a module
   #
 	my $prog="";
+  my $is_string_eval;
 	if(ref($program)){
 		$prog=$$program;	
+    $is_string_eval=1;
 		$opts{file}//="EVAL";
 	}
 	elsif($opts{file}){
-    return $error unless -f $opts{file}; #Abort if we can't access the file
+    return undef unless -f $opts{file}; #Abort if we can't access the file
 		#file path
 		$prog=do {
 			open my $fh, "<", $opts{file} or die "Could not open file for reading";
@@ -421,8 +425,9 @@ sub tracer{
   else {
     if (ref($opts{trace}) ne "Devel::StackTrace"){
       
-      carp "Error does not have trace or is not a Devel::TraceStack object";
-      return "";
+      warn "Error::Show::tracer: could not find a trace or is not a Devel::TraceStack object";
+      return context %opts;#, file=>$frame->filename, line=>$frame->line;
+
     }
   }
 

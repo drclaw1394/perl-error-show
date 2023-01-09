@@ -1,5 +1,5 @@
 use strict;
 use warnings;
 
-print "HELLO";
+print STDERR "HELLO";
 

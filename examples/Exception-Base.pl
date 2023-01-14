@@ -1,17 +1,23 @@
-use Exception::Base;
+use Exception::Base verbosity=>4;
 #use Exception::Class;
 use Error::Show;
 use v5.36;
 use feature "try";
 sub my_func {
   try{
-    Exception::Base->throw("An error occured");
+    my $e= Exception::Base->new();
+    $e->verbosity(10);
+    $e->throw();
+
   }
   catch($e){
-    $e->verbosity(4);
-    say Error::Show::trace_context $e;
-    say "$e";
-    say join "\n", $e->get_caller_stacktrace;
+    say "CONTEXT:";
+    say Error::Show::context $e;
+    say "";
+    say "Tracer";
+    use Data::Dumper;
+    #say Dumper $e->get_caller_stacktrace;
+    say Dumper $e->caller_stack;
   }
 }
 

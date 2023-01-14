@@ -7,6 +7,11 @@ sub my_func {
     Exception::Class::Base->throw("An error occured");
   }
   catch($e){
+
+    say "CONTEXT:";
+    say Error::Show::context $e;
+    say "";
+    say "Tracer";
     say Error::Show::tracer $e;
     #say Error::Show::tracer trace=>$e->trace;
     #say "$e";

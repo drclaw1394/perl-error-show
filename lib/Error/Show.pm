@@ -3,6 +3,7 @@ package Error::Show;
 use 5.024000;
 use strict;
 use warnings;
+use feature "say";
 use Carp;
 use POSIX;  #For _exit;
 
@@ -59,34 +60,11 @@ sub import {
 
 
   # Process with warnings if specified
-  #my $do_warn=$^W|| grep /warn/, @options;
+  my $do_warn=grep /warn/, @options;
 
-  my $do_warn=$^W||${^WARNING_BITS};
 
-  ###########################################################
-  # say "^W: ".$^W;                                         #
-  # say "^S: ".$^S;                                         #
-  # say "Warning bits: ".${^WARNING_BITS};                  #
-  # say "check flag: $^C";                                  #
-  # say "Defined warning bits ". defined(${^WARNING_BITS}); #
-  ###########################################################
   
-  my @warn;
-  if(${^WARNING_BITS}){
-    #defined true  value  
-    @warn=("-W");
-  }
-  elsif(defined(${^WARNING_BITS})){
-      #defined value only
-      @warn=("-X");
-  }
-  elsif($^W){
-    #If still checking, this is set with the -w flag
-    @warn=("-w");
-  }
-  else{
-    #no -w -W or -X flags set
-  }
+  my @warn=$do_warn?():"-MError::Show::Internal";
 
 
   #
@@ -102,7 +80,7 @@ sub import {
   # Is this the best way? Not sure. At least this way there is no argument
   # processing, perl process does it for us.
   #
-  #
+  
   @IINC=map {chomp; $_} do {
     open my $fh, "-|", $^X . q| -E 'map print("$_\n"), @INC'| or die "$!";
     <$fh>;
@@ -234,6 +212,7 @@ sub context{
     my $ref=ref $error;
 
     unless($ref){
+      DEBUG and say "$error is NOT a ref";
       my $first="";
       ($first)=split "\n", $error;
 
@@ -262,8 +241,10 @@ sub context{
     else {
       #Assume an object with __FILE__ and __LINE__
       #$program=
+      DEBUG and say "$error is a ref";
       $opts{file}=$error->file;
       $opts{line}=$error->line;
+	    $error=undef; #No longer use error as we have the info we need
     }
   }
   else {
@@ -425,7 +406,7 @@ sub tracer{
   else {
     if (ref($opts{trace}) ne "Devel::StackTrace"){
       
-      warn "Error::Show::tracer: could not find a trace or is not a Devel::TraceStack object";
+      carp "Error::Show::tracer: could not find a trace or is not a Devel::TraceStack object";
       return context %opts;#, file=>$frame->filename, line=>$frame->line;
 
     }

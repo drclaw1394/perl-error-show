@@ -14,7 +14,7 @@ From the command line changes an error like this:
   Execution of examples/file_syn_error1.pl aborted due to compilation errors.
 
 
-To something a little more helpful, with no modifications:
+To something a little more helpful, with no source modifications:
 
   ->perl  -MError::Show examples/file_syn_error1.pl
   examples/file_syn_error1.pl
@@ -35,14 +35,14 @@ To something a little more helpful, with no modifications:
   
 
 
-Honours perl -c, -w, -W and  -X flags.  To only perform a syntax check, use the
--c flag like normal.  To enable showing context for warnings during a check,
-use -w -W  or -X flags.
+To only perform a syntax check, use the -c flag like normal.  To enable showing
+context for warnings during a check, add the warn options 
 
 	perl -MError::Show -c examples/file_syn_error1.pl 
-	perl -MError::Show -c -w examples/file_syn_error1.pl 
 
-Also honours -I flags to allow user include paths:
+	perl -MError::Show=warn -c -w examples/file_syn_error1.pl 
+
+Honours -I flags as you would expect to allow user include paths:
 
 	perl -I my_lib -MError::Show -MAnother::Module  path/to/file.pl
 
@@ -78,63 +78,51 @@ Or supply a L<Devel::StackTrace> object directly
 
 =head1 DESCRIPTION
 
-This module aids in debugging and processing exceptions and errors in your
-code. It does this in two modes of operation:
-  
-=over 
-
-=item 1. Syntax checking with contextual information
-
-This is done at compile time from the command line. No modifications to existing
-code are required. Very handy!
-
-  perl -MError::Show  path_to_your_script
-
-This will execute your script if no syntax problems where found, or it will
-display the code context of the first error.
+From the command line, this module transparently executes your syntactically
+correct code. In the case of a syntax error, it extracts context (lines of
+code) surrounding the source of the (first) syntax error. The nicely formated
+context is dumped on STDERR for you to see the error or your ways.
 
 
-=item 2. Exception supplimental contextual information
+From withing a program at runtime, it can be used to give the same formated
+code context around the source of an exception and any associated stack traces.
 
-Interoperates with perl 'basic string' exceptions and CPAN exception modules
-(L<Exception::Class::Base> or L<Exception::Base> are recommended by not
-required) to provide additional information (i.e. code context) of an
-exception.
-
-=back
-
-This B<is not> an exception base class, but can operate with object exceptions.
-The only requirement is the exception object responds to stringifcation and has
-a C<file> and C<line> method. A C<trace> method (returning a
-L<Devel::StackTrace> object is also required for the  C<Error::Show::trace>
-function to work as intended.
-
-The information generates can be though of as an expanded stack trace. Instead
-of just the function name and location generated in a normal stack trace, the
-actual lines of code are also reported.
+The context information generated can be though of as an expanded stack trace.
+Instead of just the function name and location generated in a normal stack
+trace, the actual lines of code surrounding the execption/error are also
+numberd and marked, ready for diagnosis.
 
 A handful of options provided basic configuration of how many lines of code to
-print before and after the target line, indenting  prefix etc.
+print before and after the error line, indenting of stack trace context, etc.
 
 No symbols are exported and as such they must be accesses via the package name.
+
+B<Note:> This B<is not> an exception base class, but is designed to operate
+with some popular classes on CPAN along side of normal perl error strings.
+
+but can operate with object
+exceptions as well as perl error strings.  The only requirement is the
+exception object responds to stringifcation and has a C<file> and C<line>
+method. A C<trace> method (returning a L<Devel::StackTrace> object is also
+required for the C<Error::Show::trace> function to work as intended.
+
 
 =head1 WHY USE THIS MODULE?
 
 =over
 
-=item 1. Small and fast
+=item 1. Small and Simple
 
 L<Perl::Critic> is a fine tool. But it is large and complex and is focused on
 your style and not syntax errors. Perl obviously tells you about syntax errors,
-but this modules just makes it a little nicer to visualise.
+but this module makes it a little nicer to visualise.
 
 
-=item 2. No dependencies
+=item 2. Reports syntax errors, without adding dependencies
 
-If your code doesn't compile, you can't use a custom exception class can you?
-This will provide context information on syntax error directly from the command
-line and doesn't need to be a dependency of your code. It also does not require
-any Exception modules.
+This module can provide context information on syntax error directly from the
+command line without adding a dependency to your code. It also does not require
+any Exception modules to operate.
 
 =item 3. Doesn't force a philosophy
 
@@ -148,11 +136,10 @@ aid in debugging or error reporting.
 
 =head2 Command Line usage (Syntax checking)
 
-
 	perl -MError::Show  [options] file.pl 
 
 When included in a command line switch to perl C<-MError::Show>, it syntax
-checks the input program. If the syntax is good, normal execution continues.
+checks the input program. If the syntax is OK, normal execution continues.
 Otherwise detailed code context surrounding the source of the error is
 generated and printed on STDERR.
 
@@ -161,29 +148,35 @@ B<NOTE:>It is important that it's the first C<-M> switch.
 Additional C<@INC> directories and perl switches can also be used as per
 normal.
 
-The -c -w -X -W -I flags are honoured when the script is being checked
-internally, to give as transparent as possible script checking before
-executing.
+The -c -I flags are honoured when the script is being checked internally, to
+give as transparent as possible script checking before executing.
 
 B<Syntax Checking Options>
 
-
+The following options can be used in isolation or together
 
 =head4 clean
 
-If you prefer just the code context without the perl error,  add the clean
-option
+If you prefer just the code context without the perl error, add the clean
+option:
 
   perl -MError::Show=clean file.pl
+
+=head4 warn
+
+Instead of showing context around the first error, this options enables
+displaying context around the first compile time warning found.
+
+  perl -MError::Show=warn file.pl
 
 
 =head2 Exception (in program) Usage
 
-
 Simply bring L<Error::Show> into your program with a use statement:
 
-	use Error::Show;
+  use Error::Show;
 
+It provides two subroutines for processing errors and exceptions.
 
 =head3 Error::Show::context
 
@@ -192,19 +185,22 @@ Simply bring L<Error::Show> into your program with a use statement:
 	my $context=Error::Show::context option_pairs, ...;   (3)
 	
 Takes an error string, or exception object and extracts the code surrounding
-the source of the error. 
+the source of the error. The code lines are prefixed with line numbers and the
+error line marked with a fat arrow.
 
-Return value is original error stringified with the formatted multi line string
-of code, with prefixed line numbers, and a 'fat arrow' maker indicating the
-line which causes the error to occur:
+The return value is the formated context, followed by the original perl error
+strings, or stringified exeception objects/messages:
+
 
   filename.pl 
-  ... error... at filename.pl line 12 ...
   10  #code before 
   11  #code before 
   12=>#this line caused the error
   13  #code after
   14  #code after
+
+  ... error... at filename.pl line 12 ...
+
 
 In the first form (1), the C<$@> variable is implicitly used as the error. No
 processing options can be supplied in this form.
@@ -213,7 +209,7 @@ In the second form (2), a single argument is supplied, which becomes the error
 to process. No processing options can be supplied in this form.
 
 In the third for (3), all options are provided as key value pairs. The required
-key is B<error>,with a value corresponding to the error value.
+key is B<error>, with a value corresponding to the error value.
 
 Internally if the error is a simple perl string, the B<program> and B<line>
 options are extracted from the error string. If the error is a reference, it is
@@ -268,14 +264,17 @@ information, for a cleaner look.
 
 
 Repeatedly calls C<Error::Show::context> for each level the call stack
-represented by a L<Devel::StackTrace> object.  Takes the same option pairs as
-L<Error::Show::context>.
+represented by a L<Devel::StackTrace> object extraced by the C<trace> call on
+the error object.  Also see the trace option below.
+
+If the error is simply a perl error string, this is equivilent to calling
+C<Error::Show::Context> once.
+
+Takes the same option pairs as L<Error::Show::context>.
 
 It forces the B<clean> option for each level of stack trace. The stringified
 error is appended at the end.
 
-B<NOTE:>This assumes the error input is an object that responds to the B<trace>
-method and not a simple perl string error. See the trace option below.
 
 B<Additional Options:>
 
@@ -315,6 +314,49 @@ die with an error message.
 Only the first error in the perl error messages is used to find the context.
 Hopefully it's the right one ;) 
 
+=head1 DETAILS ON HOW IT WORKS
+
+This module operates in two modes.
+
+=head2
+A summary of the command line syntax checking process:
+
+=over 
+
+=item 1. A new perl process is run to extract defauly @INC paths
+
+This prints the paths back to the main script.
+
+=item 2. @INC paths compared and B<-I> options identified
+
+The difference between the main script C<@INC> and the information gathered
+previously reveals the B<-I> options the user specified
+
+=item 3. New perl process to execute Syntax checking
+
+Another perl process, with the additional B<-I> arguments, and the
+C<Error::Show::Internal> helper module is run in check mode
+
+=item 4. Parsing of error information
+
+The output is read in by the main process, with filenames, and line numbers
+extracted from the first error string
+
+=item 5. Building context
+
+The filename parsed out from the error is slurped into an array of lines. Only
+lines withing the configured range before and after the error line are kept.
+This lines are are prepended and formatted with the line number. The proported
+error line is also marked with a fat arrow to make it stand out
+
+=item 6. Reporting
+
+These lines are printed to STDERR, followed by the original perl error strings.
+
+
+=back
+
+
 
 =head1 SEE ALSO
 
@@ -324,6 +366,9 @@ doesn't show any errors by design (only interested in process return code)
 L<Syntax::Check> provides programmatic syntax checking of files.
 
 L<Perl::Critic> gives actual perl linting, but not great for syntax errors.
+
+L<diagnostics> give some very useful explanation about the otherwise terse
+error strings normally outpu by perl.
 
 =head1 AUTHOR
 

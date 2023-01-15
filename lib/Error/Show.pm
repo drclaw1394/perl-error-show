@@ -6,6 +6,8 @@ use warnings;
 use feature "say";
 use Carp;
 use POSIX;  #For _exit;
+use IPC::Open3;
+use Symbol 'gensym'; # vivify a separate handle for STDERR
 
 #use Exporter qw<import>;
 use base "Exporter";
@@ -19,16 +21,11 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} });
 
 our @EXPORT = qw();
 
-my @valid_errors=(
-	"Can't find string terminator"
-);
 
 our $VERSION = 'v0.1.0';
 use constant DEBUG=>0;
-use IPC::Open3;
-use Symbol 'gensym'; # vivify a separate handle for STDERR
 
-sub context;
+
 
 #
 # A list of top level file paths or scalar refs to check for syntax errors
@@ -45,8 +42,7 @@ sub import {
 
   if($caller[2]){
     # 
-    # A nonzero line means included in code, not from command line, 
-    # process export requests.
+    # A nonzero line means included in code, not from command line.
     #
     return;
   }
@@ -56,15 +52,10 @@ sub import {
 
   my %options;
 
-  my $clean=grep /clean/, @options;
-  my $splain=grep /splain/, @options;
+  my $clean=grep /clean/i, @options;
+  my $splain=grep /splain/i, @options;
+  my $do_warn=grep /warn/i, @options;
 
-
-  # Process with warnings if specified
-  my $do_warn=grep /warn/, @options;
-
-
-  
   my @warn=$do_warn?():"-MError::Show::Internal";
 
 
@@ -172,6 +163,148 @@ sub import {
   }
 }
 
+
+sub process_ref_errror{
+  #
+  # This can only be a (single) runtime error
+  #
+  my $error=pop;
+  my %opts=@_;
+  my $ref=ref $error;
+
+
+  my %entry;
+
+  # 
+  # TODO: 
+  # Lookup handler code to process this type of error
+  # 
+
+  \%entry;
+
+}
+
+sub process_string_error{
+  my $error=pop;
+  my %opts=@_;
+
+	my @error_lines;
+  my @errors; 
+  #my @entry;
+  my %entry;
+	if(defined $error){
+    #local $_=$error;
+		#Substitue with a line number relative to the start marker
+		#Reported line numbers are 1 based, stored lines are 0 based
+    #my $translation=$opts{translation};
+    #my $start=$opts{start};
+  
+    my $i=0;
+		for(split "\n", $error){
+      if(/at (.*?) line (\d+)/){
+        #
+        # Group by file names
+        #
+        my $entry=$entry{$1}//=[];
+        push @$entry, {file=>$1, line=>$2, perl=>$_, sequence=>$i++};
+      }
+    }
+
+    
+    #return "$opts{program} syntax OK" if $opts{program} and !@error_lines;
+    #@error_lines=(shift @error_lines);
+	}
+	else {
+		#Assume a target line
+    #push @error_lines, $opts{line}-1;
+	}
+
+  #Key is file name
+  # value is a hash of filename,line number, perl error string and the sequence number
+
+  \%entry;
+
+}
+
+sub text_output {
+  my $info_ref=pop;
+  my %opts=@_;
+  my $total="";
+
+  # Sort by sequence number 
+  my @sorted_info= 
+    sort { $a->{sequence} <=> $b->{sequence} } 
+    map { $_->@* } values %$info_ref;
+
+  # Process each of the errors in sequence
+  for my $info (@sorted_info){
+    unless(exists $info->{code_lines}){
+      my @code=split "\n", do {
+        open my $fh, "<", $info->{file} or die "Could not open file for reading: $info->{file}";
+        local $/=undef;
+        <$fh>;
+      };
+      $info->{code_lines}=\@code;
+    }
+
+    my $min=$info->{line}-$opts{pre_lines};
+    my $max=$info->{line}+$opts{post_lines};
+
+    my $target= $info->{line};
+
+    $min=$min<0 ? 0: $min;
+    my $count=$info->{code_lines}->@*;
+    $max=$max>=$count?$count:$max;
+    #
+    # format counter on the largest number to be expected
+    #
+    my $f_len=length("$max");
+
+    my $out="$opts{indent}$info->{file}\n";
+    
+    my $indent=$opts{indent}//"";
+    my $format="$indent%${f_len}d% 2s %s\n";
+    my $mark="";
+
+    #Change min and max to one based index
+    $min++;
+    $max++;
+
+    for my $l($min..$max){
+      $mark="";
+
+      #Perl line number is 1 based
+      $mark="=>" if $l==$info->{line};
+
+      #However our code lines are stored in a 0 based array
+      $out.=sprintf $format, $l, $mark, $info->{code_lines}[$l-1];#lines[$l];
+    }
+    $total.=$out;
+    $total.=$info->{perl}."\n" unless $opts{clean};
+    if($opts{splain}){
+      my @cmd="splain";
+      local $/=undef;
+      my $pid;
+      eval{
+        $pid= open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
+        print $chld_in $info->{perl};
+        close $chld_in;
+        $out=<$chld_out>;
+        close $chld_out;
+        close $chld_err;
+      };
+      if(!$pid and $@){
+        die "Error::Show Could not splain the results";
+      }
+
+      $total.=$out;
+    }
+
+  }
+  $total;
+}
+
+
 #Take an error string and attempt to contextualize it
 #	context options_pairs, error string	
 sub context{
@@ -214,59 +347,7 @@ sub context{
   #unless($program){
 
 
-  # 
-  # If we have an error stirng/object extract what we need
-  #
-  if($error){
-    my $ref=ref $error;
 
-    unless($ref){
-      DEBUG and say "$error is NOT a ref";
-      my $first="";
-      ($first)=split "\n", $error;
-
-      chomp $first;
-      #
-      # Compile time errors list filename on first line by itself
-      # Run time exceptions will have the location informaiton appended to the line
-      # for normal string exceptions(die) and actual exceptions (eg divide by
-      # zero).
-      # However If the message has a newline or is an ref or object, then the
-      # location information  is not appended and manual manipulation is required.
-      #
-      if($first=~/at (.*?) line (\d+)/){
-        # Runtime error/exception
-        #$program=
-        DEBUG and say STDERR "DID MATCH PERL ERROR STRING";
-        DEBUG and say STDERR $first;
-        $opts{file}=$1;
-        $opts{line}=$2;
-      }
-      else {
-        DEBUG and say STDERR "DID NOT MATCH PERL ERROR STRING";
-        #Assume no error
-      }
-    }
-    else {
-      #Assume an object with __FILE__ and __LINE__
-      #$program=
-      DEBUG and say "$error is a ref";
-      $opts{file}=$error->file;
-      $opts{line}=$error->line;
-	    $error=undef; #No longer use error as we have the info we need
-    }
-  }
-  else {
-      #Assume the line and file are specified manually, or there really is no error
-	    $error=undef;# if defined $opts{line};
-      return "" unless $opts{file} and $opts{line};
-  }
-
-  #$program//=$file; 	#Or use the caller if it is undefined
-  DEBUG and say STDERR "ABOUT TO parse perl error code";
-  DEBUG and say STDERR "FIle is $opts{file}";
-
-	return "" unless $error or $opts{line};
 	$opts{start_mark}//=qr|.*|;	#regex which matches the start of the code 
 	$opts{pre_lines}//=5;		#Number of lines to show before target line
 	$opts{post_lines}//=5;		#Number of lines to show after target line
@@ -276,131 +357,17 @@ sub context{
 	$opts{indent}//="";
 	$opts{file}//="";
 
-  #
-  # Here we want to read the file with the error in it. This might not
-  # be the program file specified, but a module
-  #
-	my $prog="";
-  my $is_string_eval;
-	if(ref($program)){
-		$prog=$$program;	
-    $is_string_eval=1;
-		$opts{file}//="EVAL";
-	}
-	elsif($opts{file}){
-    return undef unless -f $opts{file}; #Abort if we can't access the file
-		#file path
-		$prog=do {
-			open my $fh, "<", $opts{file} or die "Could not open file for reading";
-			local $/=undef;
-			<$fh>;
-		};
-    $opts{file}||=$program;	#set filename
-	}
-	else {
-		#Use caller?
-	}
-
-	my $line=0;
-	my $start=undef;
-	$start=0 if defined($opts{line});
-
-	
-	#Break up error message into lines
-	#TODO: only need to process pre_lines+1+post_lines  instead of the whole file....
-	my @lines=map { $start = $line++ if !defined($start) .. /$opts{start_mark}/;$_."\n" } split "\n", $prog;
-	
-	DEBUG and say STDERR "LINES:\n", @lines;
-
-	#$start+=2;
-	my @error_lines;
-	if(defined $error){
-		local $_=$error;
-		#Substitue with a line number relative to the start marker
-		#Reported line numbers are 1 based, stored lines are 0 based
-		my $translation=$opts{translation};
-		$error=~s/line (\d+)/do{push @error_lines, $1-1+$translation;"line ".($1-$start+$translation)}/eg;
-		$error=~s/\(eval (\d+)\)/"(".$opts{file}.")"/eg;
-
-    
-		return "$program syntax OK" if $program and !@error_lines;
-		@error_lines=(shift @error_lines);
-	}
-	else {
-		#Assume a target line
-		push @error_lines, $opts{line}-1;
-	}
-
-	my $min=$error_lines[0];
-	my $max=$error_lines[0];
-
-	$min>$_ and $min=$_ for @error_lines;
-	$max<$_ and $max=$_ for @error_lines;
+  # Get the all the info we need to process
+  my $info_ref=process_string_error %opts, $error;
+  
+  my $output;
+  $output=text_output %opts, $info_ref;
+  
+  #TODO:
 
 
-	#Adjust start and end posision with offset
-	$start+=$opts{offset_start};
-	my $end=$#lines -$opts{offset_end};
 
-	#Set context start and stop line numbers and clamp if out of range of the file
-	$min-=$opts{pre_lines}; $min=$start if $min<$start;
-	$max+=$opts{post_lines}; $max=$end if $max>$end;
-	
-	#my $counter=$min;	#counter is translated  line count
-
-	#format counter on the largest number to be expected
-	my $f_len=length("$max");
-
-	my $out="$opts{indent}$opts{file}\n";
-  $out.="\n";
-	
-	my $indent=$opts{indent}//"";
-	my $format="$indent%${f_len}d% 2s %s";
-	my $mark="";
-
-	DEBUG and say STDERR "Error lines: ", join ", ", @error_lines;
-	DEBUG and say STDERR "Lines: ", @lines;
-	DEBUG and say STDERR "MIN: $min, MAX: $max";
-	#my $translation=$opts{translation}+1;
-	for my $l($min..$max){
-		$mark="";
-		$mark="=>" if(grep {$l==$_} @error_lines);
-		$out.=sprintf $format, $l+1, $mark, $lines[$l];
-
-	}
-
-  unless($opts{clean}){
-    $out.="\n";
-
-    if(defined $error){
-      $out.=join "\n", 
-      map {$opts{indent}.$_ }
-      split "\n", $error;
-      $out.="\n";
-    }
-  }
-
-	DEBUG and say STDERR "TRANSFORMED: $out";
-  if($opts{splain}){
-      my @cmd="splain";
-      local $/=undef;
-      my $pid;
-      my $out;
-      eval{
-        $pid= open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
-        print $chld_in $out;
-        close $chld_in;
-        $out=<$chld_out>;
-        close $chld_out;
-        close $chld_err;
-      };
-      if(!$pid and $@){
-        die "Error::Show Could not splain the results";
-      }
-      
-    }
-
-	$out
+	$output;
   
 }
 
@@ -458,7 +425,6 @@ sub tracer{
   }
   
   $out.=$error;
-  #$out;
 }
 
 1;

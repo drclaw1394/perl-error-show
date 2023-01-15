@@ -57,6 +57,7 @@ sub import {
   my %options;
 
   my $clean=grep /clean/, @options;
+  my $splain=grep /splain/, @options;
 
 
   # Process with warnings if specified
@@ -116,12 +117,20 @@ sub import {
   die "Sorry, cannot Error::Show \"$file\"" unless -f $file;
   my @cmd= ($^X ,@warn, @extra, "-c",  $file);
 
-  my $pid = open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
-  my $result=<$chld_err>;
-  close $chld_in;
-  close $chld_out;
-  close $chld_err;
-  wait;
+    my $pid;
+    my $result;
+    eval {
+      $pid=open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
+      $result=<$chld_err>;
+      close $chld_in;
+      close $chld_out;
+      close $chld_err;
+      wait;
+    };
+    if(!$pid and $@){
+      die "Error::Show failed to syntax check";
+    }
+
 
   # 
   # 4. Status code from child indicates success
@@ -133,7 +142,7 @@ sub import {
   my $runnable=$?==0;
   #say "SYNTAX RUNNABLE: $runnable";
 
-  my $status=context(clean=>$clean, error=>$result, program=>$file)."\n";
+  my $status=context(splain=>$splain, clean=>$clean, error=>$result, program=>$file)."\n";
 
   if($^C){
     if($runnable){
@@ -372,7 +381,27 @@ sub context{
   }
 
 	DEBUG and say STDERR "TRANSFORMED: $out";
+  if($opts{splain}){
+      my @cmd="splain";
+      local $/=undef;
+      my $pid;
+      my $out;
+      eval{
+        $pid= open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
+        print $chld_in $out;
+        close $chld_in;
+        $out=<$chld_out>;
+        close $chld_out;
+        close $chld_err;
+      };
+      if(!$pid and $@){
+        die "Error::Show Could not splain the results";
+      }
+      
+    }
+
 	$out
+  
 }
 
 

@@ -1,9 +1,8 @@
 =head1 NAME
 
-Error::Show - Show context of syntax errors and exceptions
+Error::Show - Show context and splain syntax errors and exceptions
 
 =head1 SYNOPSIS
-
 
 From the command line changes an error like this:
 
@@ -81,8 +80,7 @@ Or supply a L<Devel::StackTrace> object directly
 From the command line, this module transparently executes your syntactically
 correct code. In the case of a syntax error, it extracts context (lines of
 code) surrounding the source of the (first) syntax error. The nicely formated
-context is dumped on STDERR for you to see the error or your ways.
-
+context is dumped on STDERR for you to see the error or your ways. 
 
 From withing a program at runtime, it can be used to give the same formated
 code context around the source of an exception and any associated stack traces.
@@ -90,7 +88,8 @@ code context around the source of an exception and any associated stack traces.
 The context information generated can be though of as an expanded stack trace.
 Instead of just the function name and location generated in a normal stack
 trace, the actual lines of code surrounding the execption/error are also
-numberd and marked, ready for diagnosis.
+numberd and marked, ready for diagnosis. If the splain option is enabled, it
+will also output the much more descriptive reason for the error or warning.
 
 A handful of options provided basic configuration of how many lines of code to
 print before and after the error line, indenting of stack trace context, etc.
@@ -122,7 +121,8 @@ but this module makes it a little nicer to visualise.
 
 This module can provide context information on syntax error directly from the
 command line without adding a dependency to your code. It also does not require
-any Exception modules to operate.
+any Exception modules to operate. 
+
 
 =item 3. Doesn't force a philosophy
 
@@ -168,6 +168,14 @@ Instead of showing context around the first error, this options enables
 displaying context around the first compile time warning found.
 
   perl -MError::Show=warn file.pl
+
+
+=head4 splain
+
+Runs the output through the splain program (see L<diagnostics>), giving reasons
+behind the error or warning
+
+  perl -MError::Show=splain file.pl
 
 
 =head2 Exception (in program) Usage
@@ -367,8 +375,9 @@ L<Syntax::Check> provides programmatic syntax checking of files.
 
 L<Perl::Critic> gives actual perl linting, but not great for syntax errors.
 
-L<diagnostics> give some very useful explanation about the otherwise terse
-error strings normally outpu by perl.
+L<diagnostics>  and the C<splain> program give some very useful explanations
+about the otherwise terse error strings normally output. It is part of the perl
+distribution
 
 =head1 AUTHOR
 

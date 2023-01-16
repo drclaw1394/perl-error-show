@@ -25,7 +25,7 @@ our @EXPORT = qw();
 our $VERSION = 'v0.1.0';
 use constant DEBUG=>0;
 use enum ("PACKAGE=0",qw<FILENAME LINE SUBROUTINE 
-  HASHARGS WANTARRAY EVALTEXT IS_REQUIRE HINTS BITMASK 
+  HASARGS WANTARRAY EVALTEXT IS_REQUIRE HINTS BITMASK 
   HINT_HASH MESSAGE SEQUENCE CODE_LINES>);
 
 
@@ -229,6 +229,7 @@ sub process_string_error{
         $a->[FILENAME]=$1;
         $a->[LINE]=$2;
         $a->[MESSAGE]=$_;
+        $a->[MESSAGE]=$opts{message} if $opts{message};
         $a->[SEQUENCE]=$i++;
         push @$entry, $a;
       }
@@ -257,7 +258,7 @@ sub text_output {
 
   # Sort by sequence number 
   my @sorted_info= 
-    sort { $a->{sequence} <=> $b->{sequence} } 
+    sort { $a->[SEQUENCE] <=> $b->[SEQUENCE] } 
     map { $_->@* } values %$info_ref;
 
   # Process each of the errors in sequence
@@ -308,8 +309,6 @@ sub text_output {
       #Perl line number is 1 based
       $mark="=>" if $l==$info->[LINE];
 
-      #say $info->[CODE_LINES][$l-1];
-      #say $l;
       #However our code lines are stored in a 0 based array
       $out.=sprintf $format, $l, $mark, $info->[CODE_LINES][$l-1];
     }
@@ -388,6 +387,7 @@ sub _context{
   else{
     #Some kind of object, converted into line and file hash
     $info_ref= {$error->[FILENAME]=>[$error]};#  {$error->{file}=>[$error]};
+    $error->[MESSAGE]=$opts{message}//""; #Store the message
   }
   
   my $output;
@@ -416,6 +416,12 @@ sub context{
   else {
     %opts=@_;
   }
+
+  if($opts{frames}){
+    $opts{error}=delete $opts{frames};
+  }
+  
+
   # Convert from supported exceptions classes to internal format
   use Scalar::Util;
   my $package=Scalar::Util::blessed $opts{error};
@@ -432,8 +438,27 @@ sub context{
 
     my %_opts=%opts;
     for my $e ($opts{error}->@*) {
+      if(Scalar::Util::blessed($e) eq "Devel::StackTrace::Frame"){
+        #Convert to an array
+        my @a;
+        $a[PACKAGE]=$e->package;
+        $a[FILENAME]=$e->filename;
+        $a[LINE]=$e->line;
+        $a[SUBROUTINE]=$e->subroutine;
+        $a[HASARGS]=$e->hasargs;
+        $a[WANTARRAY]=$e->wantarray;
+        $a[EVALTEXT]=$e->evaltext;
+        $a[IS_REQUIRE]=$e->is_require;
+        $a[HINTS]=$e->hints;
+        $a[BITMASK]=$e->bitmask;
+        $a[HINT_HASH]=$e->hints;
+        $e=\@a;
+      }
       if($e->[FILENAME] and $e->[LINE]){
         $e->[MESSAGE]//="";
+
+        #Force a message if one is provided
+        $e->[MESSAGE]=$opts{message} if $opts{message};
         $_opts{indent}=$current_indent;
 
         $_opts{error}=$e;

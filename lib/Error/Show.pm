@@ -26,12 +26,16 @@ our $VERSION = 'v0.1.0';
 use constant DEBUG=>0;
 
 
+################################
+# my $buffer="";               #
+# open THITHER  ,">",\$buffer; #
+################################
 
 #
 # A list of top level file paths or scalar refs to check for syntax errors
 #
 my @IINC;
-
+sub context;
 
  
 sub import {
@@ -164,6 +168,17 @@ sub import {
 }
 
 
+our %exception_adaptors;
+$exception_adaptors{"Exception::Base"}=sub {
+
+};
+
+$exception_adaptors{"Exception::Class::Base"}=sub {
+  #take an error
+  my $e=shift;
+};
+
+
 sub process_ref_errror{
   #
   # This can only be a (single) runtime error
@@ -206,7 +221,7 @@ sub process_string_error{
         # Group by file names
         #
         my $entry=$entry{$1}//=[];
-        push @$entry, {file=>$1, line=>$2, perl=>$_, sequence=>$i++};
+        push @$entry, {file=>$1, line=>$2,message=>$_, sequence=>$i++};
       }
     }
 
@@ -239,11 +254,18 @@ sub text_output {
   # Process each of the errors in sequence
   for my $info (@sorted_info){
     unless(exists $info->{code_lines}){
-      my @code=split "\n", do {
-        open my $fh, "<", $info->{file} or die "Could not open file for reading: $info->{file}";
-        local $/=undef;
-        <$fh>;
-      };
+      my @code;
+      
+      if($info->{file} =~ /\(eval \d+\)/){
+        @code=split "\n", $opts{program}//"";
+      }
+      else {
+        @code=split "\n", do {
+          open my $fh, "<", $info->{file} or warn "Could not open file for reading: $info->{file}";
+          local $/=undef;
+          <$fh>;
+        };
+      }
       $info->{code_lines}=\@code;
     }
 
@@ -255,6 +277,7 @@ sub text_output {
     $min=$min<0 ? 0: $min;
     my $count=$info->{code_lines}->@*;
     $max=$max>=$count?$count:$max;
+
     #
     # format counter on the largest number to be expected
     #
@@ -268,7 +291,7 @@ sub text_output {
 
     #Change min and max to one based index
     $min++;
-    $max++;
+    #$max--;
 
     for my $l($min..$max){
       $mark="";
@@ -276,30 +299,17 @@ sub text_output {
       #Perl line number is 1 based
       $mark="=>" if $l==$info->{line};
 
+      #say $info->{code_lines}[$l-1];
+      #say $l;
       #However our code lines are stored in a 0 based array
-      $out.=sprintf $format, $l, $mark, $info->{code_lines}[$l-1];#lines[$l];
+      $out.=sprintf $format, $l, $mark, $info->{code_lines}[$l-1];
     }
     $total.=$out;
-    $total.=$info->{perl}."\n" unless $opts{clean};
-    if($opts{splain}){
-      my @cmd="splain";
-      local $/=undef;
-      my $pid;
-      eval{
-        $pid= open3(my $chld_in, my $chld_out, my $chld_err = gensym, @cmd);
-        print $chld_in $info->{perl};
-        close $chld_in;
-        $out=<$chld_out>;
-        close $chld_out;
-        close $chld_err;
-      };
-      if(!$pid and $@){
-        die "Error::Show Could not splain the results";
-      }
+    $total.=$info->{message}."\n" unless $opts{clean};
 
-      $total.=$out;
-    }
-
+  }
+  if($opts{splain}){
+    $total=splain($total);
   }
   $total;
 }
@@ -307,7 +317,7 @@ sub text_output {
 
 #Take an error string and attempt to contextualize it
 #	context options_pairs, error string	
-sub context{
+sub _context{
 	#use feature ":all";
 	DEBUG and say STDERR "IN context call";
   #my ($package, $file, $caller_line)=caller;
@@ -315,20 +325,22 @@ sub context{
   # Error is set by single argument, key/value pair, or if no
   # argument $@ is used
   #
-  my $error;
-	my %opts;
+	my %opts=@_;
+  my $error= $opts{error};
 
-  if(@_==0){
-    $error=$@;
-  }
-  elsif(@_==1){
-    $error=shift;
-  }
-  else {
-    %opts=@_;
-	  $error= $opts{error};
-  }
-
+  #################################
+  # if(@_==0){                    #
+  #   $error=$@;                  #
+  # }                             #
+  # elsif(@_==1){                 #
+  #   $error=shift;               #
+  # }                             #
+  # else {                        #
+  #   %opts=@_;                   #
+  #         $error= $opts{error}; #
+  # }                             #
+  #                               #
+  #################################
   my $program;
 
   #	
@@ -358,15 +370,22 @@ sub context{
 	$opts{file}//="";
 
   # Get the all the info we need to process
-  my $info_ref=process_string_error %opts, $error;
+  my $info_ref;
+  if(defined($error) and ref($error) eq ""){
+    #A string error. A normal string die/warn or compile time errors/warnings
+    $info_ref=process_string_error %opts, $error;
+    #say "infor ref ".join ", ", $info_ref;
+  }
+  else{
+    #Some kind of object, converted into line and file hash
+    $info_ref={$error->{file}=>[$error]};
+  }
   
   my $output;
   $output=text_output %opts, $info_ref;
   
   #TODO:
-
-
-
+  #
 	$output;
   
 }
@@ -375,10 +394,10 @@ sub context{
 #
 # This only works with errors objects which captured a trace as a Devel::StackTrace object
 #
-sub tracer{
-  my $trace;
-  my $error;
+my $msg= "Trace must be a ref to array of  {file=>.., line=>..} pairs";
+sub context{
   my %opts;
+  my $out;
   if(@_==0){
     $opts{error}=$@;
   }
@@ -388,44 +407,89 @@ sub tracer{
   else {
     %opts=@_;
   }
+  # Convert from supported exceptions classes to internal format
+  use Scalar::Util;
+  my $package=Scalar::Util::blessed $opts{error};
+  if($package){
+    no strict "refs";
+    say "Package is: ", @{$package."::ISA"};
+  }
 
-  if(ref($opts{error})){
-    $@=undef;
-    eval {
-        $opts{trace}=$opts{error}->trace;
-    };
-    if($@){
-        carp "Could not call trace method on error (error not an object?)";
-        return "";
+  #Check for trace kv pair. If this is present. We ignore the error
+  if(ref($opts{error}) eq "ARRAY"){
+
+    # Iterate through the list
+    my $_indent=$opts{indent}//="    ";
+    my $current_indent="";
+
+    my %_opts=%opts;
+    for my $e ($opts{error}->@*) {
+      if($e->{file} and $e->{line}){
+        $e->{message}//="";
+        $_opts{indent}=$current_indent;
+
+        $_opts{error}=$e;
+        $out.=_context %_opts;
+
+        $current_indent.=$_indent;
+      }
+      else{
+        die $msg;
+      }
     }
+
   }
   else {
-    if (ref($opts{trace}) ne "Devel::StackTrace"){
-      
-      carp "Error::Show::tracer: could not find a trace or is not a Devel::TraceStack object";
-      return context %opts;#, file=>$frame->filename, line=>$frame->line;
+    #say "NOT AN ARRAY: ". join ", ", %opts;
 
-    }
+    $out=_context %opts;
   }
-
-
-
-  $error=delete($opts{error})//"";
-  $trace=$opts{trace};
-  $opts{clean}=1;   #for clean
-
-	my $_indent=$opts{indent}//="    ";
-	my $current_indent="";
-  # from top (most recent) of stack to bottom.
-  my $out="";
-  while ( my $frame = $trace->prev_frame ) {
-		  $opts{indent}=$current_indent;
-      $out.=context %opts, file=>$frame->filename, line=>$frame->line;
-		  $current_indent.=$_indent;
-  }
-  
-  $out.=$error;
+  $out;
 }
 
+my ($chld_in, $chld_out, $chld_err);
+my @cmd="splain";
+my $pid;
+sub splain {
+  my $out;
+  #Attempt to open splain process if it isn't already
+  unless($pid){
+    eval{
+      $pid= open3($chld_in, $chld_out, $chld_err = gensym, @cmd);
+      #$chld_in->autoflush(1);
+
+    };
+    if(!$pid and $@){
+      warn "Error::Show Could not splain the results";
+    }
+  };
+
+  #Attempt to write to the process and read from it
+  eval {
+    print $chld_in $_[0], "\n";;
+    close $chld_in;
+    $out=<$chld_out>;
+    close $chld_out;
+    close $chld_err;
+  };
+
+  if($@){
+    $pid=undef;
+    close $chld_in;
+    close $chld_out;
+    close $chld_err;
+    warn "Error::Show Could not splain the results";
+  }
+  $out;
+}
+
+sub ecb_help {
+  my $e=shift;
+  {line=>$e->line, file=>$e->file, message=>"$e"};
+}
+sub ecb_trace_help {
+  my $e=shift;
+  \(map {{file=>$_->filename, line=>$_->line, message=>$e}} $e->trace->frames);
+}
 1;
 __END__

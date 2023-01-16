@@ -8,14 +8,26 @@ sub my_func {
   }
   catch($e){
 
-    say "CONTEXT:";
-    say Error::Show::context $e;
+    say "CONTEXT: ".$e->line, $e->file, "$e";
+    say Error::Show::context $e;#{line=>$e->line, file=>$e->file, message=>"$e"};
+
+    say Error::Show::context {line=>$e->line, file=>$e->file, message=>"$e"};
+
+
+    my @temp=map {{file=>$_->filename, line=>$_->line, message=>$e}} $e->trace->frames;
+    say Error::Show::context \@temp;
+
     say "";
     say "Tracer";
-    say Error::Show::tracer $e;
-    #say Error::Show::tracer trace=>$e->trace;
-    #say "$e";
-    #say ref $e->trace;
+  }
+
+
+  my $string='"Hello
+    and something eler
+   to look at"';
+  eval  $string;
+  if($@){
+    say Error::Show::context program=>$string, error=>$@;
   }
 }
 

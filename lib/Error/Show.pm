@@ -24,6 +24,9 @@ our @EXPORT = qw();
 
 our $VERSION = 'v0.1.0';
 use constant DEBUG=>0;
+use enum ("PACKAGE=0",qw<FILENAME LINE SUBROUTINE 
+  HASHARGS WANTARRAY EVALTEXT IS_REQUIRE HINTS BITMASK 
+  HINT_HASH MESSAGE SEQUENCE CODE_LINES>);
 
 
 ################################
@@ -221,7 +224,13 @@ sub process_string_error{
         # Group by file names
         #
         my $entry=$entry{$1}//=[];
-        push @$entry, {file=>$1, line=>$2,message=>$_, sequence=>$i++};
+        #push @$entry, {file=>$1, line=>$2,message=>$_, sequence=>$i++};
+        my $a=[];
+        $a->[FILENAME]=$1;
+        $a->[LINE]=$2;
+        $a->[MESSAGE]=$_;
+        $a->[SEQUENCE]=$i++;
+        push @$entry, $a;
       }
     }
 
@@ -253,29 +262,29 @@ sub text_output {
 
   # Process each of the errors in sequence
   for my $info (@sorted_info){
-    unless(exists $info->{code_lines}){
+    unless(exists $info->[CODE_LINES]){
       my @code;
       
-      if($info->{file} =~ /\(eval \d+\)/){
+      if($info->[FILENAME] =~ /\(eval \d+\)/){
         @code=split "\n", $opts{program}//"";
       }
       else {
         @code=split "\n", do {
-          open my $fh, "<", $info->{file} or warn "Could not open file for reading: $info->{file}";
+          open my $fh, "<", $info->[FILENAME] or warn "Could not open file for reading: $info->[FILENAME]";
           local $/=undef;
           <$fh>;
         };
       }
-      $info->{code_lines}=\@code;
+      $info->[CODE_LINES]=\@code;
     }
 
-    my $min=$info->{line}-$opts{pre_lines};
-    my $max=$info->{line}+$opts{post_lines};
+    my $min=$info->[LINE]-$opts{pre_lines};
+    my $max=$info->[LINE]+$opts{post_lines};
 
-    my $target= $info->{line};
+    my $target= $info->[LINE];
 
     $min=$min<0 ? 0: $min;
-    my $count=$info->{code_lines}->@*;
+    my $count=$info->[CODE_LINES]->@*;
     $max=$max>=$count?$count:$max;
 
     #
@@ -283,7 +292,7 @@ sub text_output {
     #
     my $f_len=length("$max");
 
-    my $out="$opts{indent}$info->{file}\n";
+    my $out="$opts{indent}$info->[FILENAME]\n";
     
     my $indent=$opts{indent}//"";
     my $format="$indent%${f_len}d% 2s %s\n";
@@ -297,15 +306,15 @@ sub text_output {
       $mark="";
 
       #Perl line number is 1 based
-      $mark="=>" if $l==$info->{line};
+      $mark="=>" if $l==$info->[LINE];
 
-      #say $info->{code_lines}[$l-1];
+      #say $info->[CODE_LINES][$l-1];
       #say $l;
       #However our code lines are stored in a 0 based array
-      $out.=sprintf $format, $l, $mark, $info->{code_lines}[$l-1];
+      $out.=sprintf $format, $l, $mark, $info->[CODE_LINES][$l-1];
     }
     $total.=$out;
-    $total.=$info->{message}."\n" unless $opts{clean};
+    $total.=$info->[MESSAGE]."\n" unless $opts{clean};
 
   }
   if($opts{splain}){
@@ -378,7 +387,7 @@ sub _context{
   }
   else{
     #Some kind of object, converted into line and file hash
-    $info_ref={$error->{file}=>[$error]};
+    $info_ref= {$error->[FILENAME]=>[$error]};#  {$error->{file}=>[$error]};
   }
   
   my $output;
@@ -416,16 +425,15 @@ sub context{
   }
 
   #Check for trace kv pair. If this is present. We ignore the error
-  if(ref($opts{error}) eq "ARRAY"){
-
+  if(ref($opts{error}) eq "ARRAY" and ref $opts{error}[0]){
     # Iterate through the list
     my $_indent=$opts{indent}//="    ";
     my $current_indent="";
 
     my %_opts=%opts;
     for my $e ($opts{error}->@*) {
-      if($e->{file} and $e->{line}){
-        $e->{message}//="";
+      if($e->[FILENAME] and $e->[LINE]){
+        $e->[MESSAGE]//="";
         $_opts{indent}=$current_indent;
 
         $_opts{error}=$e;
@@ -490,6 +498,13 @@ sub ecb_help {
 sub ecb_trace_help {
   my $e=shift;
   \(map {{file=>$_->filename, line=>$_->line, message=>$e}} $e->trace->frames);
+}
+
+sub mojo_help{
+  my $e=shift;
+  my $f=(($e->frames->@*)[0]);
+
+
 }
 1;
 __END__

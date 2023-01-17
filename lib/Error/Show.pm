@@ -8,6 +8,7 @@ use Carp;
 use POSIX;  #For _exit;
 use IPC::Open3;
 use Symbol 'gensym'; # vivify a separate handle for STDERR
+use Scalar::Util qw<blessed>;
 
 #use Exporter qw<import>;
 use base "Exporter";
@@ -423,12 +424,33 @@ sub context{
   
 
   # Convert from supported exceptions classes to internal format
-  use Scalar::Util;
-  my $package=Scalar::Util::blessed $opts{error};
-  if($package){
-    no strict "refs";
-    say "Package is: ", @{$package."::ISA"};
+
+  my $ref=ref $opts{error};
+  my $dstf="Devel::StackTrace::Frame";
+
+  if(blessed($opts{error})//"" eq $dstf){
+    # Single DSTF stack frame. Convert to an array
+    $opts{error}=[$opts{error}];
   }
+  elsif($ref eq "ARRAY" and ref($opts{error}[0]) eq ""){
+    # Array of scalars  - a normal stack frame - wrap it
+    $opts{error}=[$opts{error}];
+  }
+  elsif($ref eq ""){
+    # Not a reference - A string error 
+  }
+  elsif($ref eq "ARRAY" and ref($opts{error}[0]) eq "ARRAY"){
+    # Array of  arrays of scalars
+    
+  }
+  elsif($ref eq "ARRAY" and blessed($opts{error}[0]) eq $dstf){
+    #Array of DSTF object
+  }
+  else {
+    die "Expecting caller type array or a $dstf object, or arrays of these";
+  }
+  
+
 
   #Check for trace kv pair. If this is present. We ignore the error
   if(ref($opts{error}) eq "ARRAY" and ref $opts{error}[0]){
@@ -438,7 +460,7 @@ sub context{
 
     my %_opts=%opts;
     for my $e ($opts{error}->@*) {
-      if(Scalar::Util::blessed($e) eq "Devel::StackTrace::Frame"){
+      if(blessed($e)//"" eq "Devel::StackTrace::Frame"){
         #Convert to an array
         my @a;
         $a[PACKAGE]=$e->package;

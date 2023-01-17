@@ -77,60 +77,29 @@ Or supply a L<Devel::StackTrace> object directly
 
 =head1 DESCRIPTION
 
-From the command line, this module transparently executes your syntactically
-correct code. In the case of a syntax error, it extracts context (lines of
-code) surrounding the source of the (first) syntax error. The nicely formated
-context is dumped on STDERR for you to see the error or your ways. 
+From the command line this module transparently executes your syntactically
+correct program. However in the case of syntax errors, it extracts context
+(lines of code) surrounding them. The lines are prefixed with numbers  and the
+nicely formated context is dumped on STDERR for you to see the error or your
+ways. 
 
-From withing a program at runtime, it can be used to give the same formated
-code context around the source of an exception and any associated stack traces.
+The resulting output is optionally filtered throught the L<splain> program,
+with no effort on the users behalf to give more information on why syntax
+errors and warnings might have occured. 
 
-The context information generated can be though of as an expanded stack trace.
-Instead of just the function name and location generated in a normal stack
-trace, the actual lines of code surrounding the execption/error are also
-numberd and marked, ready for diagnosis. If the splain option is enabled, it
-will also output the much more descriptive reason for the error or warning.
+From withing a program at runtime, this module can be used to give the same
+formated code context around the source of an exception and any associated
+stack traces. 
+
+It supports perl string exceptions and warnings directly and also provides the
+ability to integrate third party CPAN exception objects and traces with minimal
+effort, with out requiring them directly.
+
 
 A handful of options provided basic configuration of how many lines of code to
 print before and after the error line, indenting of stack trace context, etc.
 
 No symbols are exported and as such they must be accesses via the package name.
-
-B<Note:> This B<is not> an exception base class, but is designed to operate
-with some popular classes on CPAN along side of normal perl error strings.
-
-but can operate with object
-exceptions as well as perl error strings.  The only requirement is the
-exception object responds to stringifcation and has a C<file> and C<line>
-method. A C<trace> method (returning a L<Devel::StackTrace> object is also
-required for the C<Error::Show::trace> function to work as intended.
-
-
-=head1 WHY USE THIS MODULE?
-
-=over
-
-=item 1. Small and Simple
-
-L<Perl::Critic> is a fine tool. But it is large and complex and is focused on
-your style and not syntax errors. Perl obviously tells you about syntax errors,
-but this module makes it a little nicer to visualise.
-
-
-=item 2. Reports syntax errors, without adding dependencies
-
-This module can provide context information on syntax error directly from the
-command line without adding a dependency to your code. It also does not require
-any Exception modules to operate. 
-
-
-=item 3. Doesn't force a philosophy
-
-Equally important, this module doesn't get in the way of using nice exception
-classes during run time. It supplements them. You can choose when to use it to
-aid in debugging or error reporting.
-
-=back
 
 =head1 USAGE
 
@@ -164,16 +133,15 @@ option:
 
 =head4 warn
 
-Instead of showing context around the first error, this options enables
-displaying context around the first compile time warning found.
+This options enables processing of wanrings as well as errors.
 
   perl -MError::Show=warn file.pl
 
 
 =head4 splain
 
-Runs the output through the splain program (see L<diagnostics>), giving reasons
-behind the error or warning
+Runs the output through the splain program (see L<diagnostics>), giving
+probable reasons behind the error or warning
 
   perl -MError::Show=splain file.pl
 
@@ -184,13 +152,13 @@ Simply bring L<Error::Show> into your program with a use statement:
 
   use Error::Show;
 
-It provides two subroutines for processing errors and exceptions.
+It provides a single subroutine for processing errors and exceptions.
 
 =head3 Error::Show::context
 
   my $context=Error::Show::context;                     (1)
   my $context=Error::Show::context $error;              (2)
-	my $context=Error::Show::context option_pairs, ...;   (3)
+  my $context=Error::Show::context option_pairs, message=>$error_as_string, frames=>$stack frames (3)
 	
 Takes an error string, or exception object and extracts the code surrounding
 the source of the error. The code lines are prefixed with line numbers and the
@@ -210,37 +178,46 @@ strings, or stringified exeception objects/messages:
   ... error... at filename.pl line 12 ...
 
 
+
+
 In the first form (1), the C<$@> variable is implicitly used as the error. No
-processing options can be supplied in this form.
+processing options can be supplied in this form. 
 
 In the second form (2), a single argument is supplied, which becomes the error
 to process. No processing options can be supplied in this form.
 
-In the third for (3), all options are provided as key value pairs. The required
-key is B<error>, with a value corresponding to the error value.
+In the third for (3), all options are provided as key value pairs. 
 
-Internally if the error is a simple perl string, the B<program> and B<line>
-options are extracted from the error string. If the error is a reference, it is
-expected to be an object responding to stringificaton, file, and line methods.
-L<Exception::Base> and L<Exception::Class::Base>  provides this interface for
-example.
+The expected types of data are as follows:
+
+=over 
+
+=item 1. String Errors(like perl errors)
+
+Error string, as per C<die> and C<warn>, contining file and line number. These
+aare extracted from the string error to locate context.
+
+The output message is this string exactly.
+
+=item 2. An reference to an array containing results from C<caller>
+
+The filename, and line elements are used to process. No error message is output
+unless the B<message> option is also specified. 
+
+=item 3. An Devel::StackTrace::Frame object
+
+This is converted internally to a array of C<caller> output. As above.
+
+=item 4. or, an array of 2. or  3.
+
+An refernce to an array of call frames in C<caller> or
+C<Devel::StackTrace::Frame> format can also be splied as the error. Again the
+the C<message> option needs to be provided if error string is required in the
+output.
+
+=back
 
 B<Options include:>
-
-=head4 program
-
-  program => $path
-  program => \$string
-
-Manual override of the program source file. If the value is a normal scalar, it
-is treated as a path. If it is a reference, it is treated as a reference to the
-body of the program stored in a string.
-
-=head4 line
-    
-    line=>value
-
-Manual override of the line number within the program where the error occurred.
 
 =head4 pre_lines
 
@@ -264,42 +241,30 @@ When true, the normal perl error string is not included in the context
 information, for a cleaner look.
 
 
-=head3 Error::Show::tracer
-
-  Error::show::tracer;                    (1)
-  Error::show::tracer $error; (2)
-	Error::Show::tracer option_pairs;       (3)
-
-
-Repeatedly calls C<Error::Show::context> for each level the call stack
-represented by a L<Devel::StackTrace> object extraced by the C<trace> call on
-the error object.  Also see the trace option below.
-
-If the error is simply a perl error string, this is equivilent to calling
-C<Error::Show::Context> once.
-
-Takes the same option pairs as L<Error::Show::context>.
-
-It forces the B<clean> option for each level of stack trace. The stringified
-error is appended at the end.
-
-
-B<Additional Options:>
-
 =head4 indent
   
     indent=>string
 
 The string to use for each level of indent. Defaults to 4 spaces.
 
-=head4 trace
+=head4 splain
 
-  trace=>devel_stack_trace
+    splain=>1
 
-Instead of specifying the error option, the trace option allows specifying
-directly the L<Devel::StackTrace> object to use.
+The resulting output will be filtered through the L<splain> program.  
 
 =head1 EXAMPLES
+
+=head2 Integrating with Exception classes
+
+=head3 Mojolicous
+
+=head3 Exception::Base
+
+=head3 Exception::Class::Base
+
+=head3 Class::Throwable
+
 
 Please see the examples directory in this distribution
 
@@ -311,6 +276,7 @@ Please see the examples directory in this distribution
 
 =item Colour terminal output
 
+=item JSON output?
 
 =back
 

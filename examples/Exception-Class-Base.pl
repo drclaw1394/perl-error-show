@@ -9,7 +9,7 @@ sub my_func {
   catch($e){
 
     my @frames=$e->trace->frames;
-    say Error::Show::context message=>$e, frames=>\@frames;#{line=>$e->line, file=>$e->file, message=>"$e"};
+    say Error::Show::context message=>$e, frames=>[@frames[0]];#{line=>$e->line, file=>$e->file, message=>"$e"};
 
   }
 

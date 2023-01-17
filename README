@@ -111,9 +111,9 @@ DESCRIPTION
     them. The lines are prefixed with numbers and the nicely formatted
     context is dumped on STDERR for you to see the error or your ways.
 
-    The resulting output is optionally filtered through the splain program,
-    with no effort on the users behalf to give more information on why
-    syntax errors and warnings might have occurred.
+    The resulting output is optionally filtered seamlessly through the
+    splain program (see diagnostics), giving more information on why the
+    reported syntax errors and warnings might have occurred.
 
     From withing a program at runtime, this module can be used to give the
     same formatted code context around the source of an exception and

@@ -141,7 +141,7 @@ sub import {
   my $runnable=$?==0;
   #say "SYNTAX RUNNABLE: $runnable";
 
-  my $status=context(splain=>$splain, clean=>$clean, error=>$result, program=>$file)."\n";
+  my $status=context(splain=>$splain, clean=>$clean, error=>$result )."\n";
 
   if($^C){
     if($runnable){
@@ -237,8 +237,6 @@ sub process_string_error{
     }
 
     
-    #return "$opts{program} syntax OK" if $opts{program} and !@error_lines;
-    #@error_lines=(shift @error_lines);
 	}
 	else {
 		#Assume a target line
@@ -258,6 +256,8 @@ sub text_output {
   my $total="";
 
   # Sort by sequence number 
+  # Errors are stored by filename internally. Sort by sequence number.
+  #
   my @sorted_info= 
     sort { $a->[SEQUENCE] <=> $b->[SEQUENCE] } 
     map { $_->@* } values %$info_ref;
@@ -267,8 +267,8 @@ sub text_output {
     unless(exists $info->[CODE_LINES]){
       my @code;
       
-      if($info->[FILENAME] =~ /\(eval \d+\)/){
-        @code=split "\n", $opts{program}//"";
+      if($info->[EVALTEXT]){
+        @code=split "\n", $info->[EVALTEXT];
       }
       else {
         @code=split "\n", do {
@@ -337,35 +337,6 @@ sub _context{
 	my %opts=@_;
   my $error= $opts{error};
 
-  #################################
-  # if(@_==0){                    #
-  #   $error=$@;                  #
-  # }                             #
-  # elsif(@_==1){                 #
-  #   $error=shift;               #
-  # }                             #
-  # else {                        #
-  #   %opts=@_;                   #
-  #         $error= $opts{error}; #
-  # }                             #
-  #                               #
-  #################################
-  my $program;
-
-  #	
-  # Remaining arguments are to be key/value options
-  #
-
-  # 
-  # Program is the original application file or string ref
-  #
-  $program=$opts{program};
-
-  # 
-  # If no program has been specifed yet, attempt to extract from the actual
-  # error message.
-  #
-  #unless($program){
 
 
 

@@ -111,6 +111,7 @@ try {
 catch($e){
   say STDERR Error::Show message=>$e, frames=>$e->frames
 }
+
 ```
 
 # DESCRIPTION
@@ -131,10 +132,13 @@ any associated stack frames if provided.
 
 It supports perl string exceptions and warnings directly and also provides the
 ability to integrate third party CPAN exception objects and traces with minimal
-effort.
+effort. Please see examples in this document or in examples directory of the
+distribution showing use with [Mojo::Exception](https://metacpan.org/pod/Mojo%3A%3AException), [Exception::Base](https://metacpan.org/pod/Exception%3A%3ABase),
+[Exception::Class::Base](https://metacpan.org/pod/Exception%3A%3AClass%3A%3ABase), and [Class::Throwable](https://metacpan.org/pod/Class%3A%3AThrowable).
 
-A handful of options provided basic configuration of how many lines of code to
-print before and after the error line, indenting of stack trace context, etc.
+A handful of options are available for basic configuration of how many lines of
+code to print before and after the error line, indenting of stack trace
+context, etc.
 
 No symbols are exported and as such they must be accesses via the package name.
 
@@ -337,7 +341,14 @@ if($@){
 The following are a cheat sheet / example code to interoperate this module with
 exception objects.
 
-### Mojolicous
+The most reliable way is usually to explicitly set the **message** and **frames**
+options explicitly. This works with a single frame (for the latest exception)
+or ref to array, for a complete trace
+
+### Mojo::Exception
+
+**FYI:** [Mojo::Exception](https://metacpan.org/pod/Mojo%3A%3AException) does provide it's own facility to show the code
+context around an exception.
 
 ```perl
 use v5.36;
@@ -362,7 +373,78 @@ catch($e){
 }
 ```
 
+### Class::Throwable
+
+```perl
+use v5.36;
+my @a=qw<a,b,c>;
+use Class::Throwable;# VERBOSE=>1;
+Class::Throwable->setVerbosity(2);
+#use Exception::Class;
+use Error::Show;
+use feature "try";
+sub my_func {
+  try{
+    Class::Throwable->throw("Something has gone wrong");
+
+  }
+  catch($e){
+    
+    #Show the top of the stack, the latest exception
+    say Error::Show::context message=>$e, frames=>$e->getStackTrace->[0];
+
+    #Show the whole stack
+    say Error::Show::context message=>"$e", frames=>[$e->getStackTrace];
+  }
+}
+
+sub my_func2{
+  my_func;
+}
+warn "some warning";
+my_func2;
+```
+
 ### Exception::Base
+
+```perl
+use v5.36;
+use feature qw<try say>;
+
+use Exception::Base verbosity=>4;
+use Error::Show;
+
+sub my_func {
+  try{
+    my $e= Exception::Base->new();
+    #$e->verbosity(10);
+    $e->throw(message=>"Bad things");
+
+  }
+  catch($e){
+    
+    # Set verbosity to stop duplicate outputs, but provide a file and line number
+    # in the stringified version of the error
+    #
+    $e->verbosity=2;
+
+    # Message normally contatins the file and line numbers. So stringified
+    # process will work
+    #
+    say Error::Show::context $e;
+
+    # Access the frames in the caller stack
+    #
+    say Error::Show::context message=>$e->message, frames=>$e->caller_stack;
+  }
+}
+
+sub my_func2{
+  my_func;
+}
+
+my_func2;
+```
 
 ### Exception::Class::Base
 

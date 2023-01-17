@@ -11,24 +11,12 @@ sub my_func {
 
   }
   catch($e){
-    use Data::Dumper;
-    say  $e->stackTraceToString;
-    my @lines=split "\n", $e->stackTraceToString;
-    for(@lines){
-      my ($file, $line)=/called in (.*?) line (\d+) ]/;
-      say $file, $line;
-    }
-    say $e;
-    exit;
+    
+    #Show the top of the stack, the latest exception
+    say Error::Show::context message=>$e, frames=>$e->getStackTrace->[0];
 
-    say Dumper $e->getStackTrace;
-    say "CONTEXT:";
-    say Error::Show::context $e;
-    say "";
-    say "Tracer";
-    say $e;
-    use Data::Dumper;
-    say $e->getStackTrace;
+    #Show the whole stack
+    say Error::Show::context message=>"$e", frames=>[$e->getStackTrace];
   }
 }
 

@@ -1,5 +1,4 @@
 Changes
-examples/ae_stack_trace.pl
 examples/Class-Throwable.pl
 examples/eval.pl
 examples/Exception-Base.pl
@@ -17,6 +16,7 @@ README
 README.md
 t/basic.t
 t/cli-check.t
+t/frames.t
 t/syntax-error.pl
 t/syntax-ok.pl
 t/syntax-warning.pl

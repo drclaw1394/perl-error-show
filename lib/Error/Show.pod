@@ -1,51 +1,82 @@
 =head1 NAME
 
-Error::Show - Show context and splain syntax errors and exceptions
+Error::Show - Show context around syntax errors and exceptions
 
 =head1 SYNOPSIS
 
-From the command line changes an error like this:
+=head2 Command Line
 
-  ->perl examples/file_syn_error1.pl              
-  "use" not allowed in expression at examples/file_syn_error1.pl line 9, at end of line
-  syntax error at examples/file_syn_error1.pl line 9, near "adf
-  use Socket"
-  Execution of examples/file_syn_error1.pl aborted due to compilation errors.
+Consider the following program (at examples/synopsis.pl in this distribution).
+It has a syntax error on line 13, and uses an experimental feature on line 5.
 
 
-To something a little more helpful, with no source modifications:
+  use strict;
+  use warnings;
+  use Time::HiRes;
 
-  ->perl  -MError::Show examples/file_syn_error1.pl
-  examples/file_syn_error1.pl
+  use feature "refaliasing";
 
-   4   my $time=time;
-   5   for(1..1000){
-   6   	print "$_\n";
-   7   }
-   8   adf
-   9=> use Socket;
-  10   
-  11   print "this will never work";
+  \my $a=\"hello";
+  my $time=time;
+  for(1..1000){
+    print "$_\n";
+  }
 
-  "use" not allowed in expression at examples/file_syn_error1.pl line 9, at end of line
-  syntax error at examples/file_syn_error1.pl line 9, near "adf
-  use Socket"
-  examples/file_syn_error1.pl had compilation errors.
-  
+  my $crazy-var=2;
+
+  use Socket;
+
+  print "this will never work";
 
 
-To only perform a syntax check, use the -c flag like normal.  To enable showing
-context for warnings during a check, add the warn options 
+Attempting to run this program with perl normally gives this error output:
 
-	perl -MError::Show -c examples/file_syn_error1.pl 
-
-	perl -MError::Show=warn -c -w examples/file_syn_error1.pl 
-
-Honours -I flags as you would expect to allow user include paths:
-
-	perl -I my_lib -MError::Show -MAnother::Module  path/to/file.pl
+  ->perl examples/synopsis.pl       
+  Aliasing via reference is experimental at examples/synopsis.pl line 7.
+  Can't modify subtraction (-) in scalar assignment at examples/synopsis.pl line 13, near "2;"
+  BEGIN not safe after errors--compilation aborted at examples/synopsis.pl line 15.
 
 
+With C<Error::Show> enabled with the C<-M> switch, this instead looks like this:
+
+  ->perl -I lib -MError::Show=warn  examples/synopsis.pl
+  examples/synopsis.pl
+   3   use Time::HiRes;
+   4
+   5   use feature "refaliasing";
+   6
+   7=> \my $a=\"hello";
+   8   my $time=time;
+   9   for(1..1000){
+  10   	print "$_\n";
+  11   }
+  12
+  Aliasing via reference is experimental at examples/synopsis.pl line 7.
+  examples/synopsis.pl
+   9   for(1..1000){
+  10   	print "$_\n";
+  11   }
+  12
+  13=> my $crazy-var=2;
+  14
+  15   use Socket;
+  16
+  17   print "this will never work";
+  Can't modify subtraction (-) in scalar assignment at examples/synopsis.pl line 13, near "2;"
+  examples/synopsis.pl
+  11   }
+  12
+  13   my $crazy-var=2;
+  14
+  15=> use Socket;
+  16
+  17   print "this will never work";
+  BEGIN not safe after errors--compilation aborted at examples/synopsis.pl line 15.
+
+
+
+
+=head2 In Program
 
 Use at runtime to supplement exception handling:
 
@@ -53,26 +84,32 @@ Use at runtime to supplement exception handling:
 
   #an die caught in a try/eval triggers an exception
 
-  #No argument uses $@ as error
-  say STDERR Error::Show;     
-
-  #or a single exception argument of your choosing
-  say STDERR Error::Show $@;  
-
-  #Or customise the report format, line, program information
-  say STDERR Error::Show line=>123, ... , error=>$e;
+  # No argument uses $@ as error
+  #
+  eval { exceptional_code };
+  say STDERR Error::Show::context if $@;
 
 
-Generate context for your stack traces with L<Exception::Class::Base>:
+  # or a single exception argument of your choosing
+  #
+  use v5.36;
+  try { 
+    exceptional_code
+  }
+  catch($e) {
+    say STDERR Error::Show $e;
+  }
 
-  #supports no argument ($@), single argument or option pairs as
-  #Error::Show::context does
-  say STDERR Error::Show::tracer error=>$e;
+  # Show context down a stack
 
-Or supply a L<Devel::StackTrace> object directly 
+  try {
 
-  say STDERR Error::Show::tracer trace=>$my trace;
-    
+    Some_execption_class->throw("Bad things");
+
+  }
+  catch($e){
+    say STDERR Error::Show message=>$e, frames=>$e->frames
+  }
 
 
 =head1 DESCRIPTION
@@ -80,20 +117,20 @@ Or supply a L<Devel::StackTrace> object directly
 From the command line this module transparently executes your syntactically
 correct program. However in the case of syntax errors, it extracts context
 (lines of code) surrounding them. The lines are prefixed with numbers  and the
-nicely formated context is dumped on STDERR for you to see the error or your
+nicely formatted context is dumped on STDERR for you to see the error or your
 ways. 
 
-The resulting output is optionally filtered throught the L<splain> program,
-with no effort on the users behalf to give more information on why syntax
-errors and warnings might have occured. 
+The resulting output is optionally filtered through the L<splain> program, with
+no effort on the users behalf to give more information on why syntax errors and
+warnings might have occurred. 
 
 From withing a program at runtime, this module can be used to give the same
-formated code context around the source of an exception and any associated
-stack traces. 
+formatted code context around the source of an exception and iterate through
+any associated stack frames if provided.
 
 It supports perl string exceptions and warnings directly and also provides the
 ability to integrate third party CPAN exception objects and traces with minimal
-effort, with out requiring them directly.
+effort.
 
 
 A handful of options provided basic configuration of how many lines of code to
@@ -103,26 +140,26 @@ No symbols are exported and as such they must be accesses via the package name.
 
 =head1 USAGE
 
-=head2 Command Line usage (Syntax checking)
+=head2 Command Line Usage (Syntax check and run)
 
 	perl -MError::Show  [options] file.pl 
 
-When included in a command line switch to perl C<-MError::Show>, it syntax
-checks the input program. If the syntax is OK, normal execution continues.
-Otherwise detailed code context surrounding the source of the error is
-generated and printed on STDERR.
+When included in a command line switch to perl, C<-MError::Show> syntax checks
+the input program. If the syntax is OK, normal execution continues in a
+transparent fashion.  Otherwise, detailed code context surrounding the source
+of the error is generated and printed on STDERR.
 
 B<NOTE:>It is important that it's the first C<-M> switch.
 
-Additional C<@INC> directories and perl switches can also be used as per
-normal.
+If the B<-c> flag is specified, only a syntax check will be performed,
+mimicking normal perl behaviour.
 
-The -c -I flags are honoured when the script is being checked internally, to
-give as transparent as possible script checking before executing.
 
-B<Syntax Checking Options>
+Additional C<@INC> directories using the B<-I> switch are supported.
 
-The following options can be used in isolation or together
+=head3 CLI Syntax Checking Options
+
+The following options can be used in isolation or together:
 
 =head4 clean
 
@@ -133,10 +170,9 @@ option:
 
 =head4 warn
 
-This options enables processing of wanrings as well as errors.
+This options enables processing of warnings as well as errors.
 
   perl -MError::Show=warn file.pl
-
 
 =head4 splain
 
@@ -145,8 +181,13 @@ probable reasons behind the error or warning
 
   perl -MError::Show=splain file.pl
 
+=head3 Return code
 
-=head2 Exception (in program) Usage
+When in check only mode (-c), the main process is exited, just has perl
+normally would have done. The return code is a replica of what perl would have
+reported for success/failure of a syntax check.
+
+=head2 In Program (Exception) Usage
 
 Simply bring L<Error::Show> into your program with a use statement:
 
@@ -164,8 +205,8 @@ Takes an error string, or exception object and extracts the code surrounding
 the source of the error. The code lines are prefixed with line numbers and the
 error line marked with a fat arrow.
 
-The return value is the formated context, followed by the original perl error
-strings, or stringified exeception objects/messages:
+The return value is the formatted context, followed by the original perl error
+strings, or stringified exception objects/messages:
 
 
   filename.pl 
@@ -178,13 +219,13 @@ strings, or stringified exeception objects/messages:
   ... error... at filename.pl line 12 ...
 
 
-
-
 In the first form (1), the C<$@> variable is implicitly used as the error. No
-processing options can be supplied in this form. 
+processing options can be supplied in this form. This is stringified for
+processing.
 
 In the second form (2), a single argument is supplied, which becomes the error
-to process. No processing options can be supplied in this form.
+to process. No processing options can be supplied in this form. This is
+stringified for processing.
 
 In the third for (3), all options are provided as key value pairs. 
 
@@ -192,12 +233,12 @@ The expected types of data are as follows:
 
 =over 
 
-=item 1. String Errors(like perl errors)
+=item 1. String Errors (perl errors)
 
-Error string, as per C<die> and C<warn>, contining file and line number. These
-aare extracted from the string error to locate context.
+Error string, as per C<die> and C<warn>, containing file and line number. These
+are extracted from the string error to locate context.
 
-The output message is this string exactly.
+The output message after a the context is this string, 
 
 =item 2. An reference to an array containing results from C<caller>
 
@@ -206,14 +247,14 @@ unless the B<message> option is also specified.
 
 =item 3. An Devel::StackTrace::Frame object
 
-This is converted internally to a array of C<caller> output. As above.
+This is converted internally to a array of C<caller()> output. As above.
 
 =item 4. or, an array of 2. or  3.
 
-An refernce to an array of call frames in C<caller> or
-C<Devel::StackTrace::Frame> format can also be splied as the error. Again the
-the C<message> option needs to be provided if error string is required in the
-output.
+An reference to an array of call frames in C<caller()> or
+C<Devel::StackTrace::Frame> format can also be supplied as the error or frames.
+Again the C<message> option needs to be provided if error string is required in
+the output.
 
 =back
 
@@ -245,7 +286,8 @@ information, for a cleaner look.
   
     indent=>string
 
-The string to use for each level of indent. Defaults to 4 spaces.
+The string to use for each level of indent when printing multiple stack frames.
+Defaults to 4 spaces.
 
 =head4 splain
 
@@ -253,11 +295,27 @@ The string to use for each level of indent. Defaults to 4 spaces.
 
 The resulting output will be filtered through the L<splain> program.  
 
+=head4 program
+
+    
+    program=>$prog
+
+The B<program> option is used to specify the program text to process when
+there is no actual file. This is needed when to show syntax errors in a string
+C<eval>:
+
+    my $prog='my $a="This will Fail"+b';
+    eval $prog;
+    if($@){
+      say Error::Show::context error=>$@, program=>prog;
+    }
+
 =head1 EXAMPLES
 
 =head2 Integrating with Exception classes
 
-The following are a cheat sheet / example code to interoperate this module with execption objects.
+The following are a cheat sheet / example code to interoperate this module with
+exception objects.
 
 =head3 Mojolicous
   
@@ -307,7 +365,61 @@ The following are a cheat sheet / example code to interoperate this module with 
 
   }
 
-=head3 Class::Throwable
+=head3 Syntax Checking String C<eval>, without execution
+
+A block eval will have it's syntax checked during normal compilation time. A
+string eval is checked at run time and it uses the same variable C<$@> to
+report syntax errors and run time errors. In addition it executes the code
+immediately on success, so you don not have the ability to simply check the
+syntax directly and actually distinguish between syntax and runtime errors, and
+also not cause side effects of executing the eval.
+
+
+To work around it, and have C<Error::Show> still provide context information,
+wrap your eval string with an anonymous subroutine. The eval result will be
+code ref  which you can execute if the syntax was correct.
+
+  Example: Separate compiling/syntax checking from eval execution
+  =======
+
+  use strict;
+  use warnings;
+  use feature "say";
+
+  use Error::Show;
+
+
+  # Orginal string to eval
+  my $prog='say "hello there";
+  $a+1/0;
+  ';
+
+  # Wrap string in a sub
+
+  $prog="sub { $prog }";
+
+
+  # Do an eval to retun an actual code ref
+
+  my $code =eval $prog; 
+
+
+  # Check for syntax errors here. No run time error as the code ref has not been executed.
+  # Use the program option in Error::Show to specifiy the text of the program
+
+  if($@){
+    say "ERROR is".Error::Show::context error=>$@, program=>$prog;
+  }
+
+  # Execute the code reference. Any errors here are run time
+
+  eval {$code->()};
+
+  # Again use the program option in Error::Show to specifiy the text of the program
+
+  if($@){
+    say "ERROR is".Error::Show::context error=>$@, program=>$prog;
+  }
 
 
 Please see the examples directory in this distribution
@@ -326,54 +438,11 @@ Please see the examples directory in this distribution
 
 =head1 KNOWN ISSUES/GOTCHAS
 
-Checking/running  programs via the -e and -E switches is not supported and will
-die with an error message.
+Checking/running  programs via STDIN, -e and -E switches is not supported and
+will die with an error message.
 
-Only the first error in the perl error messages is used to find the context.
-Hopefully it's the right one ;) 
-
-=head1 DETAILS ON HOW IT WORKS
-
-This module operates in two modes.
-
-=head2
-A summary of the command line syntax checking process:
-
-=over 
-
-=item 1. A new perl process is run to extract defauly @INC paths
-
-This prints the paths back to the main script.
-
-=item 2. @INC paths compared and B<-I> options identified
-
-The difference between the main script C<@INC> and the information gathered
-previously reveals the B<-I> options the user specified
-
-=item 3. New perl process to execute Syntax checking
-
-Another perl process, with the additional B<-I> arguments, and the
-C<Error::Show::Internal> helper module is run in check mode
-
-=item 4. Parsing of error information
-
-The output is read in by the main process, with filenames, and line numbers
-extracted from the first error string
-
-=item 5. Building context
-
-The filename parsed out from the error is slurped into an array of lines. Only
-lines withing the configured range before and after the error line are kept.
-This lines are are prepended and formatted with the line number. The proported
-error line is also marked with a fat arrow to make it stand out
-
-=item 6. Reporting
-
-These lines are printed to STDERR, followed by the original perl error strings.
-
-
-=back
-
+More data then needed is pushed through the splain program when splain option
+is used, which isn't ideal.
 
 
 =head1 SEE ALSO
@@ -400,7 +469,7 @@ L<http://github.com/drclaw1394/perl-error-show>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2022 by Ruben Westerberg
+Copyright (C) 2023 by Ruben Westerberg
 
 This library is free software; you can redistribute it and/or modify it under
 the same terms as Perl or the MIT license.
@@ -411,4 +480,5 @@ THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS
 OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
 PARTICULAR PURPOSE.
+
 =cut

@@ -48,16 +48,14 @@ sub import {
   my @options=@_;
 
 
-  if($caller[2]){
-    # 
-    # A nonzero line means included in code, not from command line.
-    #
-    return;
-  }
+  # We don't export anything. Return when we are used withing code
+  # Continue if caller has no line number, meaning from the CLI
+  #
+  return if($caller[LINE]);
 
   # 
   # CLI Options include 
-
+  #
   my %options;
 
   my $clean=grep /clean/i, @options;
@@ -113,7 +111,8 @@ sub import {
 
   #my $runnable=not $^C;#$options{check};
   #for my $file(@file){
-  die "Sorry, cannot Error::Show \"$file\"" unless -f $file;
+  die "Error::Show cannot process STDIN, -e and -E programs" if $file eq "-e" or $file eq "-E" or $file eq "-";
+  die "Error::Show cannot access \"$file\"" unless -f $file;
   my @cmd= ($^X ,@warn, @extra, "-c",  $file);
 
     my $pid;
@@ -232,6 +231,7 @@ sub process_string_error{
         $a->[MESSAGE]=$_;
         $a->[MESSAGE]=$opts{message} if $opts{message};
         $a->[SEQUENCE]=$i++;
+        $a->[EVALTEXT]=$opts{program} if $opts{program};
         push @$entry, $a;
       }
     }
@@ -360,8 +360,10 @@ sub _context{
     #Some kind of object, converted into line and file hash
     $info_ref= {$error->[FILENAME]=>[$error]};#  {$error->{file}=>[$error]};
     $error->[MESSAGE]=$opts{message}//""; #Store the message
+    $error->[EVALTEXT]=$opts{program} if $opts{program};
   }
   
+  # Override text/file to search
   my $output;
   $output=text_output %opts, $info_ref;
   
@@ -399,7 +401,7 @@ sub context{
   my $ref=ref $opts{error};
   my $dstf="Devel::StackTrace::Frame";
 
-  if(blessed($opts{error})//"" eq $dstf){
+  if((blessed($opts{error})//"") eq $dstf){
     # Single DSTF stack frame. Convert to an array
     $opts{error}=[$opts{error}];
   }
@@ -418,7 +420,8 @@ sub context{
     #Array of DSTF object
   }
   else {
-    die "Expecting caller type array or a $dstf object, or arrays of these";
+    #warn "Expecting a string, caller() type array or a $dstf object, or arrays of these";
+    $opts{error}="$opts{error}";
   }
   
 
@@ -431,7 +434,8 @@ sub context{
 
     my %_opts=%opts;
     for my $e ($opts{error}->@*) {
-      if(blessed($e)//"" eq "Devel::StackTrace::Frame"){
+
+      if((blessed($e)//"") eq "Devel::StackTrace::Frame"){
         #Convert to an array
         my @a;
         $a[PACKAGE]=$e->package;
@@ -509,20 +513,9 @@ sub splain {
   $out;
 }
 
-sub ecb_help {
-  my $e=shift;
-  {line=>$e->line, file=>$e->file, message=>"$e"};
-}
-sub ecb_trace_help {
-  my $e=shift;
-  \(map {{file=>$_->filename, line=>$_->line, message=>$e}} $e->trace->frames);
-}
-
-sub mojo_help{
-  my $e=shift;
-  my $f=(($e->frames->@*)[0]);
-
-
+sub wrap_eval{
+  my $program=shift;
+  "sub { $program }";
 }
 1;
 __END__

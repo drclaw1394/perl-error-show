@@ -8,16 +8,12 @@ sub my_func {
   }
   catch($e){
 
-    use  Data::Dumper;
+    say Error::Show::context($e);
 
-    #
-    # Extract for 
-    #
     say Error::Show::context message=>$e, error=> $e->frames->[0];
 
 
     say Error::Show::context message=>$e, error=>$e->frames;
-
   }
 
 

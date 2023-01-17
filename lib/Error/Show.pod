@@ -7,7 +7,7 @@ Error::Show - Show context around syntax errors and exceptions
 =head2 Command Line
 
 Consider the following program (at examples/synopsis.pl in this distribution).
-It has a syntax error on line 13, and uses an experimental feature on line 5.
+It has a syntax error on line 13, and uses an experimental feature on line 7.
 
 
   use strict;
@@ -117,10 +117,10 @@ Use at runtime to supplement exception handling:
 =head1 DESCRIPTION
 
 From the command line this module transparently executes your syntactically
-correct program. However in the case of syntax errors, it extracts context
-(lines of code) surrounding them. The lines are prefixed with numbers  and the
-nicely formatted context is dumped on STDERR for you to see the error or your
-ways. 
+correct program. However in the case of syntax errors (or warnings if desired),
+it extracts context (lines of code) surrounding them. The lines are prefixed
+with numbers  and the nicely formatted context is dumped on STDERR for you to
+see the error or your ways.
 
 The resulting output is optionally filtered through the L<splain> program, with
 no effort on the users behalf to give more information on why syntax errors and

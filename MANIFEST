@@ -1,16 +1,22 @@
 Changes
 examples/ae_stack_trace.pl
+examples/Class-Throwable.pl
+examples/eval.pl
 examples/Exception-Base.pl
 examples/Exception-Class-Base.pl
-examples/file_syn_error1.pl
+examples/Mojo-Exception.pl
+examples/synopsis.pl
 lib/Error/Show.pm
 lib/Error/Show.pod
+lib/Error/Show/Internal.pm
 LICENSE
 Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
 README
 README.md
-t/programic.t
-t/require.t.pl
-t/translation.t
+t/basic.t
+t/cli-check.t
+t/syntax-error.pl
+t/syntax-ok.pl
+t/syntax-warning.pl

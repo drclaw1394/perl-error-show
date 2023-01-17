@@ -8,7 +8,7 @@ WriteMakefile(
     PREREQ_PM         => {
       enum=>0
     }, # e.g., Module::Name => 1.1
-    ABSTRACT_FROM     => 'lib/Error/Show.pm', # retrieve abstract from module
+    ABSTRACT_FROM     => 'lib/Error/Show.pod', # retrieve abstract from module
     AUTHOR            => 'Ruben Westerberg <drclaw@mac.com>',
     LICENSE           => 'mit',
     #Value must be from legacy list of licenses here

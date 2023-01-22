@@ -39,7 +39,7 @@ Attempting to run this program with perl normally gives this error output:
 
 With C<Error::Show> enabled with the C<-M> switch, this instead looks like this:
 
-  ->perl -I lib -MError::Show=warn  examples/synopsis.pl
+  ->perl -MError::Show=warn  examples/synopsis.pl
   examples/synopsis.pl
    3   use Time::HiRes;
    4

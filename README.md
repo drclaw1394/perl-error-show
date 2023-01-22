@@ -41,7 +41,7 @@ BEGIN not safe after errors--compilation aborted at examples/synopsis.pl line 15
 With `Error::Show` enabled with the `-M` switch, this instead looks like this:
 
 ```perl
-->perl -I lib -MError::Show=warn  examples/synopsis.pl
+->perl -MError::Show=warn  examples/synopsis.pl
 examples/synopsis.pl
  3   use Time::HiRes;
  4

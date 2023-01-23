@@ -6,10 +6,10 @@ v0.1.1  2023-01-22
   
   [pod]
   - Fixed up eval example
-  - Fixed types reported by W.Braswell
+  - Fixed typos reported by W.Braswell
 
   [other]
-  - updated Makefile.PL and .gitignore with repo settings. Thank you to mrdvt92
+  - updated Makefile.PL and .gitignore with repo settings. Thankyou to mrdvt92
     via github.
 
 v0.1.0  2023-01-18

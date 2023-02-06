@@ -536,6 +536,52 @@ if($@){
 
 Please see the examples directory in this distribution
 
+# ADVANCED STRING EVAL
+
+From v0.2.0 this modules has some added features to support advanced string
+evaluation. This was added to support the error reporting needs of the
+[Template::Plex](https://metacpan.org/pod/Template%3A%3APlex) module.
+
+Additional configuration options can be provided adjust the source of an error.
+This is because the actuall intresting part to the user might be a subset in
+the overall lines of code evaluated.
+
+The options include
+
+### start\_mark
+
+If specified, is a used as a regexp to match agains source code lines. The line
+after a successful match is now the first line.
+
+This allows inserting a special marker to indicate the start of 'code of
+interest' with out knowing the exact line number in the resulting code.
+
+### end\_mark
+
+If specified, is used as a regexp to match against source lines, in reverse
+order. The line after a successful match is not the last line
+
+This allows inserting a special marker to indicate the end of 'code of
+interest'.
+
+### start\_offset
+
+A static offset to add to the start line (which may have been modified by the
+**start\_mark** option), which will actually be classed as the minimum line
+number of the file
+
+This is useful to prevent any preamble in your string eval showing up in the
+user program
+
+### end\_offset
+
+A static offset to subtract to the end line (which may have been modified by
+the **end\_mark** option), which will actually be classed as the maximum line
+number of the file.
+
+This is useful to prevent any postamble in your string eval showing up in the
+user program
+
 # FUTURE WORK/TODO
 
 - Make usable from a Language Server?

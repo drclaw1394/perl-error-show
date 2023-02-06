@@ -253,7 +253,7 @@ The expected types of data are as follows:
     Error string, as per `die` and `warn`, containing file and line number. These
     are extracted from the string error to locate context.
 
-    The output message after a the context is this string, 
+    The output message after the context is this string, 
 
 - 2. An reference to an array containing results from `caller`
 
@@ -543,14 +543,14 @@ evaluation. This was added to support the error reporting needs of the
 [Template::Plex](https://metacpan.org/pod/Template%3A%3APlex) module.
 
 Additional configuration options can be provided adjust the source of an error.
-This is because the actuall intresting part to the user might be a subset in
+This is because the actual interesting part to the user might be a subset in
 the overall lines of code evaluated.
 
 The options include
 
 ### start\_mark
 
-If specified, is a used as a regexp to match agains source code lines. The line
+If specified, is a used as a regexp to match against source code lines. The line
 after a successful match is now the first line.
 
 This allows inserting a special marker to indicate the start of 'code of

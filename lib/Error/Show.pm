@@ -24,7 +24,7 @@ our @EXPORT = qw();
 
 
 our $VERSION = 'v0.2.0';
-use constant DEBUG=>0;
+use constant DEBUG=>undef;
 use enum ("PACKAGE=0",qw<FILENAME LINE SUBROUTINE 
   HASARGS WANTARRAY EVALTEXT IS_REQUIRE HINTS BITMASK 
   HINT_HASH MESSAGE SEQUENCE CODE_LINES>);
@@ -170,25 +170,6 @@ sub import {
   }
 }
 
-sub process_ref_errror{
-  #
-  # This can only be a (single) runtime error
-  #
-  my $error=pop;
-  my %opts=@_;
-  my $ref=ref $error;
-
-
-  my %entry;
-
-  # 
-  # TODO: 
-  # Lookup handler code to process this type of error
-  # 
-
-  \%entry;
-
-}
 
 sub process_string_error{
   my $error=pop;
@@ -219,7 +200,7 @@ sub process_string_error{
         #push @$entry, {file=>$1, line=>$2,message=>$_, sequence=>$i++};
         my $a=[];
         $a->[FILENAME]=$1;
-        $a->[LINE]=$2;
+        $a->[LINE]=$2-1;
         $a->[MESSAGE]=$_;
         $a->[MESSAGE]=$opts{message} if $opts{message};
         $a->[SEQUENCE]=$i++;
@@ -266,7 +247,7 @@ sub text_output {
   my $counter=0;
   my $limit=$opts{limit}//100;
   for my $info (@sorted_info){
-    last if $counter>=$limit;
+    last if $counter>=$limit and $limit >0;
     $counter++;
     unless(exists $info->[CODE_LINES]){
       my @code;
@@ -339,7 +320,6 @@ sub text_output {
     DEBUG and say "TARGET: $target";
 
     $min=$min<$start_line ? $start_line: $min;
-    #my $count=$info->[CODE_LINES]->@*;
 
     $max=$max>$end_line?$end_line:$max;
 
@@ -355,29 +335,29 @@ sub text_output {
     my $mark="";
 
     #Change min and max to one based index
-    $min++;
+    #$min++;
     #$max--;
     DEBUG and say "min before print $min";
     DEBUG and say "max before print $max";
     for my $l($min..$max){
       $mark="";
 
-      my $a=$l-$start_line;
+      my $a=$l-$start_line+1;
 
       #Perl line number is 1 based
-      $mark="=>" if $l==$target;#$info->[LINE];
+      $mark="=>" if $l==$target;
 
 
       # Print lines as per the index in file array
-      $out.=sprintf $format, $a, $mark, $info->[CODE_LINES][$l-1];
+      $out.=sprintf $format, $a, $mark, $info->[CODE_LINES][$l];
     }
 
     $total.=$out;
     
     # Modifiy the message now with updated line numbers
-    $info->[MESSAGE]=~s/line (\d+)(?:\.|,)/$1-$start_line/e;
-    #$info->[MESSAGE]=~s/ (\d+) at end of line/$1-$start_line/e;
-    #or /Missing right curly or square bracket at (.*?) (\d+) at end of line/){
+    # TODO: Tidy this up
+    $info->[MESSAGE]=~s/line (\d+)(?:\.|,)/(($1-1)>$max?$max:$1-1)-$start_line+1/e;
+
     $total.=$info->[MESSAGE]."\n" unless $opts{clean};
 
   }
@@ -521,6 +501,7 @@ sub context{
         $e->[MESSAGE]//="";
 
         #Force a message if one is provided
+        $e->[LINE]--; #Make the error 0 based
         $e->[MESSAGE]=$opts{message} if $opts{message};
         $_opts{indent}=$current_indent;
 

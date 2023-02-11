@@ -115,19 +115,23 @@ DESCRIPTION
     splain program (see diagnostics), giving more information on why the
     reported syntax errors and warnings might have occurred.
 
-    From withing a program at runtime, this module can be used to give the
+    From within a program at runtime, this module can be used to give the
     same formatted code context around the source of an exception and
     iterate through any associated stack frames if provided.
 
     It supports perl string exceptions and warnings directly and also
     provides the ability to integrate third party CPAN exception objects and
     traces with minimal effort. Please see examples in this document or in
-    examples directory of the distribution showing use with Mojo::Exception,
-    Exception::Base, Exception::Class::Base, and Class::Throwable.
+    the examples directory of the distribution showing use with
+    Mojo::Exception, Exception::Base, Exception::Class::Base and
+    Class::Throwable.
 
     A handful of options are available for basic configuration of how many
     lines of code to print before and after the error line, indenting of
     stack trace context, etc.
+
+    From v0.2.0, added 'advanced string eval' support has been added for
+    better context reporting of dynamically generated code.
 
     No symbols are exported and as such they must be accessed via the
     package name.
@@ -236,6 +240,25 @@ USAGE
 
     Options include:
 
+   limit
+      limit=>$int
+
+    From v0.2.0: Limits the number of errors to extract and generate context
+    for. Default is 100. If <=0, no limiting is applied all all errors are
+    processed.
+
+   reverse
+      reverse=>$bool
+
+    From v0.2.0: Reverses the order of error processing.
+
+    Perl type string errors are sorted and processing in ascending line
+    number order. When this option is used, the lines are processed by
+    descending line number first. Does not change order of files processed.
+
+    If frames are used instead, they are processed in reverse order to how
+    they where supplied when this option is in effect.
+
    pre_lines
       pre_lines=>value
 
@@ -277,6 +300,9 @@ USAGE
         if($@){
           say Error::Show::context error=>$@, program=>prog;
         }
+
+    For advanced string eval processing options please see the ADVANCED
+    STRING EVAL section in this document.
 
 EXAMPLES
   Integrating with Exception classes
@@ -463,45 +489,81 @@ EXAMPLES
     Please see the examples directory in this distribution
 
 ADVANCED STRING EVAL
-    From v0.2.0 this modules has some added features to support advanced
-    string evaluation. This was added to support the error reporting needs
-    of the Template::Plex module.
+    From v0.2.0 features to support advanced string evaluation are
+    available. This was added to support the error reporting needs of the
+    Template::Plex module.
 
-    Additional configuration options can be provided adjust the source of an
-    error. This is because the actual interesting part to the user might be
-    a subset in the overall lines of code evaluated.
+    Consider the following example. The 'meat' is the sub in the middle of
+    the string. Any errors/context reported should be relative to this, not
+    the start of the overall eval string. With some help from comment
+    markers "##_PREAMBLE" and "##_POSTAMBLE", when can search for the middle
+    and rebase the error line numbering.
 
-    The options include
+      eval {
+        "my $some_prep_work=1;
+        call_somthing();
+        #comments...
+    
+        ##_PREAMBLE
+
+        sub {
+           #code generated from user input...
+           say "My really cool dynamically created code"
+        }
+
+        ##_POSTAMBLE
+
+        #More code 
+        #Cleanup stuff.
+        "
+      }
+
+    Additional configuration options can be provided to search for the
+    relevant code lines and offset the error line numbers.
+
+    NOTE if these options are used, the message field is modified with
+    updated line numbers if its in the form of a normal perl errors ie
+    'error line 123 at file'.
 
    start_mark
+      start_mark=>$regexp
+
     If specified, is a used as a regexp to match against source code lines.
     The line after a successful match is now the first line.
 
     This allows inserting a special marker to indicate the start of 'code of
     interest' with out knowing the exact line number in the resulting code.
 
+    This is undefined and unused by default.
+
    end_mark
+      end_mark=>$regexp
+
     If specified, is used as a regexp to match against source lines, in
-    reverse order. The line after a successful match is not the last line
+    reverse order. The line after a successful match is now the last line
 
     This allows inserting a special marker to indicate the end of 'code of
     interest'.
 
-   start_offset
-    A static offset to add to the start line (which may have been modified
-    by the start_mark option), which will actually be classed as the minimum
-    line number of the file
+    This is undefined unused by default.
 
-    This is useful to prevent any preamble in your string eval showing up in
-    the user program
+   start_offset
+      start_offset=>$int
+
+    A static offset to add to the start line (which may have been modified
+    by the start_mark option). The result will be classed as the minimum
+    line number of the file/string.
+
+    This is useful to prevent any preamble after the start_mark line in your
+    string eval showing up in the user program context.
 
    end_offset
     A static offset to subtract to the end line (which may have been
-    modified by the end_mark option), which will actually be classed as the
+    modified by the end_mark option). The result will be classed as the
     maximum line number of the file.
 
-    This is useful to prevent any postamble in your string eval showing up
-    in the user program
+    This is useful to prevent any postamble before the end_mark in your
+    string eval showing up in the user program context.
 
 FUTURE WORK/TODO
     Make usable from a Language Server?

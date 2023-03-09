@@ -16,11 +16,13 @@ sub top {
 
 
   my $reverse=Error::Show::context frames=>\@frames, reverse=>1;
-  my @rlines=$normal=~/(\d+)=>/gms;
+  my @rlines=$reverse=~/(\d+)=>/gms;
 
 
   my $ok=1;
-  $ok&&=$_ for reverse @rlines;
+
+  my $i=0;
+  $ok&&=($_==$nlines[$i++]) for reverse @rlines;
 
   ok $ok, "Stack trace reversed";
 

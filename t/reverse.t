@@ -21,7 +21,7 @@ sub top {
 
   my $ok=1;
 
-  my $i=0;
+  $i=0;
   $ok&&=($_==$nlines[$i++]) for reverse @rlines;
 
   ok $ok, "Stack trace reversed";

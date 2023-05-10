@@ -4,8 +4,6 @@ use 5.024000;
 use strict;
 use warnings;
 use feature "say";
-#use Carp;
-use Scalar::Util qw<blessed>;
 
 
 
@@ -17,10 +15,6 @@ use enum ("PACKAGE=0",qw<FILENAME LINE SUBROUTINE
   HINT_HASH MESSAGE SEQUENCE CODE_LINES>);
 
 
-################################
-# my $buffer="";               #
-# open THITHER  ,">",\$buffer; #
-################################
 
 #
 # A list of top level file paths or scalar refs to check for syntax errors
@@ -454,7 +448,8 @@ sub context{
   my $ref=ref $opts{error};
   my $dstf="Devel::StackTrace::Frame";
 
-  if((blessed($opts{error})//"") eq $dstf){
+  require Scalar::Util;
+  if((Scalar::Util::blessed($opts{error})//"") eq $dstf){
     # Single DSTF stack frame. Convert to an array
     $opts{error}=[$opts{error}];
   }
@@ -470,7 +465,7 @@ sub context{
     $opts{error}=[map { [$_->@*] } $opts{error}->@* ];
     
   }
-  elsif($ref eq "ARRAY" and blessed($opts{error}[0]) eq $dstf){
+  elsif($ref eq "ARRAY" and Scalar::Util::blessed($opts{error}[0]) eq $dstf){
     #Array of DSTF object
   }
   else {
@@ -494,7 +489,7 @@ sub context{
     my $i=0;  #Sequence number
     for my $e ($opts{error}->@*) {
 
-      if((blessed($e)//"") eq "Devel::StackTrace::Frame"){
+      if((Scalar::Util::blessed($e)//"") eq "Devel::StackTrace::Frame"){
         #Convert to an array
         my @a;
         $a[PACKAGE]=$e->package;

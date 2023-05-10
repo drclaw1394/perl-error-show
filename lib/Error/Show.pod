@@ -247,9 +247,9 @@ stringified for processing.
 In the third for (3), all options are provided as key value pairs. 
 
 
-B<From v0.3.0:> 
-In the forth form (4), an explicit single argument of C<undef>, will generate
-call stack/frames internally and generate context information from it.
+B<From v0.3.0:> In the forth form (4), an explicit single argument of C<undef>,
+will generate call stack/frames internally and generate context information
+from it.
 
 The C<context> subroutine (5) is exported by default, so does not need a fully
 qualified name

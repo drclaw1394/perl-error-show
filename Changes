@@ -10,8 +10,10 @@ v0.3.0 2023-05-09
 
   [improvments]
 
-  - Reduced memory usage for inprogram use. The IPC::Open3 and Symbol modules
-    are not loaded unless they are actually required
+  - Reduced memory usage. The IPC::Open3 and Symbol modules are not loaded
+    unless they are actually required for CLI usage. Saves approx 25% on memory
+    usage otherwise. Scalar::Util is only loaded for in program usage (for
+    blessed subroutine). 
   - context subroutine is now callable via -> notation if prefered
   - the context subrotine symbol in now exported by defualt (when called from
     code). Previous behaviour can be achieved by explicitly importing the empty

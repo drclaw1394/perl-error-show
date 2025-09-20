@@ -1,4 +1,14 @@
 Revision history for Perl extension Error::Show.
+v0.5.0
+  [new features]
+    - Added tracable_eval subroutine Does a string eval but makes it possible
+      to Error::Show::context to generate  the required information to generate
+      a stack trace if required
+
+    - Addend trace subroutine
+      Generates the trace 
+
+
 v0.4.0 2024-04-23
   [fixes]
   - Clean up of warnings test output

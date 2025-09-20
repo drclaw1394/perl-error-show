@@ -33,6 +33,7 @@ use constant::more {
 my @IINC;
 sub context;
 
+my %programs;
  
 sub import {
   my $package=shift;
@@ -275,6 +276,10 @@ sub text_output {
       
       if($info->[EVALTEXT]){
         @code=split "\n", $info->[EVALTEXT];
+      }
+      elsif(my @f=$info->[FILENAME] =~ /\(eval \d+\)/g){
+        # Not actually a file, this was an eval
+        @code=split "\n", $programs{$f[0]};
       }
       else {
         @code=split "\n", do {
@@ -602,5 +607,83 @@ sub splain {
   }
   $out;
 }
+
+sub streval ($;$){
+
+  # The program we want to execute
+  my $code= $_[0];
+  if(ref($code) eq "CODE"){
+    say $code;
+    return eval {$code->()};
+  }
+  my $package=$_[1]//caller;
+
+  
+  # Wrap the eval in a sub. Here we can seperate syntax/complile errors and run
+  # time errors
+  #
+
+  my $file;
+
+  # Do eval to get current eval number and then calculate the NEXT eval number
+  my $number=eval '__FILE__=~ qr/(\d+)/; $1';
+  $number++;
+  $file="(eval $number)"; 
+
+  # Attempt to compile 
+  #
+  my $sub;
+  {
+    local $@;
+    my @frame;
+    $sub=eval "sub {package $package; \@frame=caller(0); $code}";
+
+    # Check for SYNTAX error
+    #
+    my $error=$@;
+    if(!defined($sub) or $error){
+      # extract the filename (including the () )stored in the error 
+      my $filename= $error=~/\(eval \d+\)/g;
+
+      my @frame;
+      my @stack;
+
+      my $i=1;
+      push @stack, [@frame];   #frame from actual eval
+      while(@frame=caller($i++)){
+         push @stack, [@frame];
+      }
+      #die "SYNTAX: ".$error, \@stack;
+      die {error=>$error, frames=>\@stack};
+    }
+  }
+  $programs{$file}=$code;
+
+
+  my $result;
+  { 
+    # Check for RUNTIME error
+    local $@;
+    my @frame;
+    $result=eval { @frame=caller(0);$sub->(); };
+    my $error=$@;
+    if($error){
+      # extract the filename stored in the error 
+      my $filename= $error=~/\(eval (\d+)\)/g;
+      my @stack;
+      my $i=1;
+      push @stack, [@frame];   #frame from actual eval
+      while(@frame=caller($i++)){
+         push @stack, [@frame];
+      }
+      #die "RUNTIME: ".$error, \@stack;
+      die {error=>$error, frames=>\@stack};
+    }
+  }
+
+  # otherwise return the result
+  $result;
+}
+
 1;
 __END__

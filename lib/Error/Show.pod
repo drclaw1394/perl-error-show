@@ -1,6 +1,6 @@
 =head1 NAME
 
-Error::Show - Show context around syntax errors and exceptions
+Error::Show - Show context around syntax errors and exceptions and string eval
 
 =head1 SYNOPSIS
 

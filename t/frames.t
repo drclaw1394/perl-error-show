@@ -36,6 +36,7 @@ eval {
 my $result;
 
 if($@){
+  #say STDERR ref $@;
   $result=Error::Show::context $@;
 }
 #say STDERR $result;

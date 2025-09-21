@@ -17,10 +17,15 @@ my $context;
 eval {
   require "./$dir/syntax-ok.pl";
 };
+#say STDERR "error is: ".length $@;
+
 $context=Error::Show::context;
+#say STDERR $context;
 ok $context eq "", "Implicit Error variable";
 
 $context=Error::Show::context $@;
+#say STDERR "error is: ",$@;
+#say STDERR $context;
 ok $context eq "", "Explicit Error variable";
 
 $context=Error::Show::context error=>$@;
@@ -57,7 +62,8 @@ ok $context ne "", "KV Error variable";
 
 # Test internal frame capture and default import
 $context=context undef;
-ok $context =~ /59=> \$context=context undef;/, "Internal frame capture";
+ok $context =~ /64=> \$context=context undef;/, "Internal frame capture";
+#say STDERR "CONTEXT $context";
 
 
 done_testing;

@@ -25,7 +25,7 @@ $tmp=1+1;
 ##_END
 # line after 1
 # line after 2
-# line arger 3
+# line arfer 3
 ';
 
 my $sub=eval $program;
@@ -35,10 +35,12 @@ ok $@, "Expected syntax error";
 # Syntax error should be on line 8
 
 if($@){
+  #say STDERR "ERROR iS: ".$@;
   my $context=Error::Show::context error=>$@, program=>$program;
   my $match='10=> my \$test=1\+a;';
+  #say STDERR "CONTEXT $context";
   ok $context=~/$match/s, "Found error on expected unmodified line";
-  say $context;
+  #say $context;
 }
 
 # Test that with adjustments we get the expected line numbers
@@ -51,7 +53,7 @@ if($@){
   #my $match='5=> my $test=1+a;';
   my $match='6=> my \$test=1\+a;';
   ok $context=~/$match/s, "Found error on expected modified line";
-  say $context;
+  #say $context;
 }
 
 

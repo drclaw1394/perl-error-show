@@ -47,13 +47,14 @@ sub import {
   #
   if($caller[LINE]){
     no strict "refs";
-    my $name=$caller[0]."::context";
+    my $name;
+    $name=$caller[0]."::context";
     *{$name}=\&{"context"};
 
-    my $name=$caller[0]."::streval";
+    $name=$caller[0]."::streval";
     *{$name}=\&{"streval"};
 
-    my $name=$caller[0]."::throw";
+    $name=$caller[0]."::throw";
     *{$name}=\&{"throw"};
     return; 
   }
@@ -421,7 +422,7 @@ sub context{
   my %opts=@_;
 
   my $out;
-  my $do_internal_frames;
+  my $do_internal_frames=1;
 
   #return unless $opts{error} or $opts{frames} or $do_internal_frames;
   #$opts{start_mark};#//=qr|.*|;	#regex which matches the start of the code 
@@ -432,21 +433,33 @@ sub context{
 	$opts{translation}//=0;		#A static value added to the line numbering
 	$opts{indent}//="    ";
 	$opts{file}//="";
-
-
-  # Work with error first
   $opts{current_indent}="";
-  my $current_indent="";
-  # Show the actual error 
-  my $info_ref=process_string_error $error, %opts ;
-  $out=text_output $info_ref, %opts;
-  $opts{current_indent}.=$opts{indent};
 
 
 
-  # For the special case of error undefined, we assume we want to dump the current location/context
+  unless($opts{reverse}){
+    # Show the actual error 
+    $opts{clean}=undef;
+    my $info_ref=process_string_error $error, %opts ;
+    $out.=text_output $info_ref, %opts;
+    $opts{current_indent}.=$opts{indent};
+  }
+
+
+
+
+  
+  # Convert from supported exceptions classes to internal format
+  my $frames;
+  $frames||=eval {$error->{frames}};          # Error::Show::Exception
+  $frames||=eval {[$error->trace->frames]};   # Exception::Class::Base    ok
+  $frames||=eval {$error->caller_stack};      # Exception::Base           ok
+  $frames||=eval {[$error->getStackTrace]};  # Class::Throwable           ok
+  $frames||=eval {\($error->frames)};  # Mojo::Exception                  ok
+  $frames||=[];
+
   #
-  if($do_internal_frames){
+  if($do_internal_frames and @$frames==0){
     my $i=0;
 
     #build call frames
@@ -454,57 +467,21 @@ sub context{
     my @stack;
 
     while(@frame=caller($i++)){
-       push @stack, [@frame];
+       push @$frames, [@frame];
     }
-    $opts{frames}=\@stack;
   }
-
-  
-  # Convert from supported exceptions classes to internal format
-  my $frames;
-  $frames||=eval {$error->{frames}};          # Error::Show::Exception
-  $frames||=eval {[($error->trace->frames)]};  # Exception::Class::Base
-  $frames||=eval {\($error->caller_stack)};   # Exception::Base
-  $frames||=eval {\($error->getStackTrace)};  # Class::Throwable
-  $frames||=eval {\($error->frames)};  # Mojo::Exception
-  $frames||=[];
   
   my $dstf="Devel::StackTrace::Frame";
 
   require Scalar::Util;
 
-  ################################################################################
-  # if((Scalar::Util::blessed($frames)//"") eq $dstf){                           #
-  #   # Single DSTF stack frame. Convert to an array                             #
-  #   $frames=[$frames];                                                         #
-  # }                                                                            #
-  # elsif($ref eq "ARRAY" and ref($opts{frames}[0]) eq ""){                      #
-  #   # Array of scalars  - a normal stack frame - wrap it                       #
-  #   $opts{frames}=[[$opts{frames}->@*]];                                       #
-  # }                                                                            #
-  # elsif($ref eq ""){                                                           #
-  #   # Not a reference - A string error                                         #
-  # }                                                                            #
-  # elsif($ref eq "ARRAY" and ref($opts{frames}[0]) eq "ARRAY"){                 #
-  #   # Array of  arrays of scalars                                              #
-  #   $opts{frames}=[map { [$_->@*] } $opts{frames}->@* ];                       #
-  #                                                                              #
-  # }                                                                            #
-  # elsif($ref eq "ARRAY" and Scalar::Util::blessed($opts{frames}[0]) eq $dstf){ #
-  #   #Array of DSTF object                                                      #
-  # }                                                                            #
-  ################################################################################
 
-  #$opts{message}//="@{[$opts{error}//'']}";
-  
-
-
-
-  DEBUG and say STDERR "Reverse flag set to: $opts{reverse}";
+  #DEBUG and ;
 
   # Reverse the ordering of errors here if requested
   #
-  $frames->@*=reverse $frames->@* if $opts{reverse};
+  my @frames_copy=$frames->@*;
+  @frames_copy=reverse @frames_copy if $opts{reverse};
   # Check for trace kv pair. If this is present. We ignore the error
   #
     # Iterate through the list
@@ -512,43 +489,55 @@ sub context{
     #my %_opts=%opts;
     $opts{clean}=1;
     my $i=0;  #Sequence number
-    for my $e ($frames->@*) {
+    for my $e (@frames_copy) {
 
+      my $a=[];
       if((Scalar::Util::blessed($e)//"") eq "Devel::StackTrace::Frame"){
         #Convert to an array
-        my @a;
-        $a[PACKAGE]=$e->package;
-        $a[FILENAME]=$e->filename;
-        $a[LINE]=$e->line;
-        $a[SUBROUTINE]=$e->subroutine;
-        $a[HASARGS]=$e->hasargs;
-        $a[WANTARRAY]=$e->wantarray;
-        $a[EVALTEXT]=$e->evaltext;
-        $a[IS_REQUIRE]=$e->is_require;
-        $a[HINTS]=$e->hints;
-        $a[BITMASK]=$e->bitmask;
-        $a[HINT_HASH]=$e->hints;
-        $e=\@a;
+        $a->[PACKAGE]=$e->package;
+        $a->[FILENAME]=$e->filename;
+        $a->[LINE]=$e->line;
+        $a->[SUBROUTINE]=$e->subroutine;
+        $a->[HASARGS]=$e->hasargs;
+        $a->[WANTARRAY]=$e->wantarray;
+        $a->[EVALTEXT]=$e->evaltext;
+        $a->[IS_REQUIRE]=$e->is_require;
+        $a->[HINTS]=$e->hints;
+        $a->[BITMASK]=$e->bitmask;
+        $a->[HINT_HASH]=$e->hints;
+        #$e=\@a;
       }
+      else {
+        #Copy incase multiple calls to context on same error
+        @$a=$e->@*;
+      }
+
       # Skip over any frames from this package
-      next if $e->[PACKAGE] eq __PACKAGE__;
+      next if $a->[PACKAGE] eq __PACKAGE__;
 
 
-      $e->[MESSAGE]//="";
+      $a->[MESSAGE]//="";
 
       #Force a message if one is provided
-      $e->[LINE]--; #Make the error 0 based
-      $e->[MESSAGE]=$opts{message} if $opts{message};
-      $e->[SEQUENCE]=$i++;
+      $a->[LINE]--; #Make the error 0 based
+      $a->[MESSAGE]=$opts{message} if $opts{message};
+      $a->[SEQUENCE]=$i++;
 
       # Generate the context here
       #
       my %entry;
-      my $entry=$entry{$e->[FILENAME]}=[];
-      push @$entry, $e;
+      my $entry=$entry{$a->[FILENAME]}=[];
+      push @$entry, $a;
       $out.= text_output \%entry, %opts;
       $opts{current_indent}.=$opts{indent};
     }
+  if($opts{reverse}){
+    # Show the actual error 
+    $opts{clean}=undef;
+    my $info_ref=process_string_error $error, %opts ;
+    $out.=text_output $info_ref, %opts;
+    $opts{current_indent}.=$opts{indent};
+  }
   $out;
 }
 
